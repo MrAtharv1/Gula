@@ -1,0 +1,960 @@
+import { MetricDefinition, MetricCategory, ResultFlag } from "./schema";
+
+export const METRIC_DICTIONARY: Record<string, MetricDefinition> = {
+  // ==================== 1. BLOOD (CBC & HEMATOLOGY) ====================
+  hemoglobin: {
+    canonicalKey: "hemoglobin",
+    displayName: "Hemoglobin",
+    category: "Blood",
+    standardUnit: "g/dL",
+    defaultLow: 13.5,
+    defaultHigh: 17.5,
+    description: "Oxygen-carrying protein in red blood cells.",
+    aliases: ["hemoglobin", "hb", "hgb", "haemoglobin", "total hemoglobin"],
+  },
+  hematocrit: {
+    canonicalKey: "hematocrit",
+    displayName: "Hematocrit",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 38.8,
+    defaultHigh: 50.0,
+    description: "Percentage of total blood volume occupied by red blood cells.",
+    aliases: ["hematocrit", "hct", "pcv", "packed cell volume"],
+  },
+  rbc: {
+    canonicalKey: "rbc",
+    displayName: "Red Blood Cell Count",
+    category: "Blood",
+    standardUnit: "M/uL",
+    defaultLow: 4.3,
+    defaultHigh: 5.9,
+    description: "Total count of circulating red blood cells.",
+    aliases: ["rbc", "red blood cell count", "red blood cells", "erythrocyte count", "total rbc"],
+  },
+  wbc: {
+    canonicalKey: "wbc",
+    displayName: "White Blood Cell Count",
+    category: "Blood",
+    standardUnit: "K/uL",
+    defaultLow: 4.5,
+    defaultHigh: 11.0,
+    description: "Immune cells defending against infections.",
+    aliases: ["wbc", "white blood cell count", "white blood cells", "leukocytes", "total leukocyte count", "tlc"],
+  },
+  platelets: {
+    canonicalKey: "platelets",
+    displayName: "Platelet Count",
+    category: "Blood",
+    standardUnit: "K/uL",
+    defaultLow: 150,
+    defaultHigh: 450,
+    description: "Cell fragments required for proper blood clotting.",
+    aliases: ["platelets", "platelet count", "plt", "thrombocytes", "total platelet count"],
+  },
+  mcv: {
+    canonicalKey: "mcv",
+    displayName: "Mean Corpuscular Volume (MCV)",
+    category: "Blood",
+    standardUnit: "fL",
+    defaultLow: 80,
+    defaultHigh: 100,
+    description: "Average size and volume of red blood cells.",
+    aliases: ["mcv", "mean corpuscular volume"],
+  },
+  mch: {
+    canonicalKey: "mch",
+    displayName: "Mean Corpuscular Hemoglobin (MCH)",
+    category: "Blood",
+    standardUnit: "pg",
+    defaultLow: 27,
+    defaultHigh: 33,
+    description: "Average quantity of hemoglobin per individual red blood cell.",
+    aliases: ["mch", "mean corpuscular hemoglobin"],
+  },
+  mchc: {
+    canonicalKey: "mchc",
+    displayName: "Mean Corpuscular Hemoglobin Concentration (MCHC)",
+    category: "Blood",
+    standardUnit: "g/dL",
+    defaultLow: 32,
+    defaultHigh: 36,
+    description: "Average concentration of hemoglobin within a unit volume of red cells.",
+    aliases: ["mchc", "mean corpuscular hemoglobin concentration"],
+  },
+  rdw: {
+    canonicalKey: "rdw",
+    displayName: "Red Cell Distribution Width (RDW)",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 11.5,
+    defaultHigh: 14.5,
+    description: "Variation in red blood cell size and shape.",
+    aliases: ["rdw", "rdw-cv", "rdw cv", "red cell distribution width", "rdw-sd"],
+  },
+  neutrophils: {
+    canonicalKey: "neutrophils",
+    displayName: "Neutrophils",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 40,
+    defaultHigh: 75,
+    description: "Primary white blood cells combating bacterial infections.",
+    aliases: ["neutrophils", "neutrophil count", "polys", "segs", "segmented neutrophils", "anc"],
+  },
+  lymphocytes: {
+    canonicalKey: "lymphocytes",
+    displayName: "Lymphocytes",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 20,
+    defaultHigh: 45,
+    description: "White blood cells responsible for viral immunity and antibodies.",
+    aliases: ["lymphocytes", "lymphocyte count", "lymphs"],
+  },
+  monocytes: {
+    canonicalKey: "monocytes",
+    displayName: "Monocytes",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 2,
+    defaultHigh: 10,
+    description: "Phagocytic cells clearing cellular debris and organisms.",
+    aliases: ["monocytes", "monocyte count", "monos"],
+  },
+  eosinophils: {
+    canonicalKey: "eosinophils",
+    displayName: "Eosinophils",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 1,
+    defaultHigh: 6,
+    description: "White blood cells active in allergic responses and parasite defense.",
+    aliases: ["eosinophils", "eosinophil count", "eos"],
+  },
+  basophils: {
+    canonicalKey: "basophils",
+    displayName: "Basophils",
+    category: "Blood",
+    standardUnit: "%",
+    defaultLow: 0,
+    defaultHigh: 2,
+    description: "White blood cells involved in inflammatory responses.",
+    aliases: ["basophils", "basophil count", "basos"],
+  },
+  esr: {
+    canonicalKey: "esr",
+    displayName: "Erythrocyte Sedimentation Rate (ESR)",
+    category: "Blood",
+    standardUnit: "mm/hr",
+    defaultLow: 0,
+    defaultHigh: 20,
+    description: "Rate of red blood cell sedimentation, indicating systemic inflammation.",
+    aliases: ["esr", "erythrocyte sedimentation rate", "sed rate"],
+  },
+  mpv: {
+    canonicalKey: "mpv",
+    displayName: "Mean Platelet Volume (MPV)",
+    category: "Blood",
+    standardUnit: "fL",
+    defaultLow: 7.5,
+    defaultHigh: 11.5,
+    description: "Average volume and size of circulating platelets.",
+    aliases: ["mpv", "mean platelet volume"],
+  },
+
+  // ==================== 2. LIPIDS ====================
+  cholesterol_total: {
+    canonicalKey: "cholesterol_total",
+    displayName: "Total Cholesterol",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 125,
+    defaultHigh: 199,
+    description: "Overall circulating cholesterol in bloodstream.",
+    aliases: ["total cholesterol", "cholesterol, total", "serum cholesterol", "cholesterol total", "cholesterol"],
+  },
+  ldl: {
+    canonicalKey: "ldl",
+    displayName: "LDL Cholesterol",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 50,
+    defaultHigh: 99,
+    description: "Low-density lipoprotein cholesterol ('bad' cholesterol).",
+    aliases: ["ldl", "ldl cholesterol", "ldl-c", "low density lipoprotein", "calculated ldl", "direct ldl", "cholesterol ldl"],
+  },
+  hdl: {
+    canonicalKey: "hdl",
+    displayName: "HDL Cholesterol",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 40,
+    defaultHigh: 80,
+    description: "High-density lipoprotein cholesterol ('good' cholesterol).",
+    aliases: ["hdl", "hdl cholesterol", "hdl-c", "high density lipoprotein", "cholesterol hdl"],
+  },
+  triglycerides: {
+    canonicalKey: "triglycerides",
+    displayName: "Triglycerides",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 0,
+    defaultHigh: 149,
+    description: "Circulating fat molecules used for stored energy.",
+    aliases: ["triglycerides", "serum triglycerides", "triglyceride", "tg", "trigs"],
+  },
+  vldl: {
+    canonicalKey: "vldl",
+    displayName: "VLDL Cholesterol",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 5,
+    defaultHigh: 30,
+    description: "Very low-density lipoprotein cholesterol carrying triglycerides.",
+    aliases: ["vldl", "vldl cholesterol", "vldl-c", "very low density lipoprotein"],
+  },
+  non_hdl: {
+    canonicalKey: "non_hdl",
+    displayName: "Non-HDL Cholesterol",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 50,
+    defaultHigh: 129,
+    description: "Total atherogenic cholesterol particles (Total Cholesterol minus HDL).",
+    aliases: ["non-hdl", "non-hdl cholesterol", "non hdl", "non hdl-c"],
+  },
+  chol_hdl_ratio: {
+    canonicalKey: "chol_hdl_ratio",
+    displayName: "Total Cholesterol / HDL Ratio",
+    category: "Lipids",
+    standardUnit: "ratio",
+    defaultLow: 2.0,
+    defaultHigh: 4.5,
+    description: "Cardiovascular risk ratio of Total Cholesterol to HDL.",
+    aliases: ["chol/hdl ratio", "cholesterol/hdl ratio", "cholesterol to hdl ratio", "tc/hdl ratio"],
+  },
+  apob: {
+    canonicalKey: "apob",
+    displayName: "Apolipoprotein B (ApoB)",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 60,
+    defaultHigh: 110,
+    description: "Primary structural protein on atherogenic lipoprotein particles.",
+    aliases: ["apob", "apo b", "apolipoprotein b", "apolipoprotein b100"],
+  },
+  apoa1: {
+    canonicalKey: "apoa1",
+    displayName: "Apolipoprotein A1 (ApoA1)",
+    category: "Lipids",
+    standardUnit: "mg/dL",
+    defaultLow: 115,
+    defaultHigh: 190,
+    description: "Major structural protein of cardioprotective HDL particles.",
+    aliases: ["apoa1", "apo a1", "apolipoprotein a1"],
+  },
+  lp_a: {
+    canonicalKey: "lp_a",
+    displayName: "Lipoprotein (a)",
+    category: "Lipids",
+    standardUnit: "nmol/L",
+    defaultLow: 0,
+    defaultHigh: 75,
+    description: "Genetically determined cardiovascular and thrombosis risk factor.",
+    aliases: ["lipoprotein (a)", "lp(a)", "lpa", "lipoprotein a"],
+  },
+
+  // ==================== 3. SUGAR & METABOLIC ====================
+  glucose_fasting: {
+    canonicalKey: "glucose_fasting",
+    displayName: "Fasting Blood Glucose",
+    category: "Sugar",
+    standardUnit: "mg/dL",
+    defaultLow: 70,
+    defaultHigh: 99,
+    description: "Blood sugar level following an 8 to 12 hour overnight fast.",
+    aliases: [
+      "fasting glucose",
+      "glucose, fasting",
+      "fasting blood sugar",
+      "glucose fasting",
+      "fbs",
+      "plasma glucose fasting",
+      "glucose",
+      "blood glucose",
+    ],
+  },
+  glucose_pp: {
+    canonicalKey: "glucose_pp",
+    displayName: "Postprandial Blood Glucose (PPBS)",
+    category: "Sugar",
+    standardUnit: "mg/dL",
+    defaultLow: 70,
+    defaultHigh: 140,
+    description: "Blood sugar level measured 2 hours after a standardized meal.",
+    aliases: [
+      "pp glucose",
+      "postprandial glucose",
+      "postprandial blood glucose",
+      "ppbs",
+      "glucose pp",
+      "2-hour postprandial glucose",
+    ],
+  },
+  glucose_random: {
+    canonicalKey: "glucose_random",
+    displayName: "Random Blood Glucose",
+    category: "Sugar",
+    standardUnit: "mg/dL",
+    defaultLow: 70,
+    defaultHigh: 140,
+    description: "Blood glucose measured irrespective of fasting or meal time.",
+    aliases: ["random glucose", "glucose random", "rbs", "random blood sugar"],
+  },
+  hba1c: {
+    canonicalKey: "hba1c",
+    displayName: "Hemoglobin A1c (HbA1c)",
+    category: "Sugar",
+    standardUnit: "%",
+    defaultLow: 4.0,
+    defaultHigh: 5.6,
+    description: "Long-term metric of average blood sugar over the preceding 3 months.",
+    aliases: [
+      "hba1c",
+      "hemoglobin a1c",
+      "glycosylated hemoglobin",
+      "glycated hemoglobin",
+      "a1c",
+      "glycohemoglobin",
+      "hgb a1c",
+    ],
+  },
+  insulin_fasting: {
+    canonicalKey: "insulin_fasting",
+    displayName: "Fasting Insulin",
+    category: "Sugar",
+    standardUnit: "uIU/mL",
+    defaultLow: 2.6,
+    defaultHigh: 24.9,
+    description: "Pancreatic hormone regulating glucose uptake and insulin sensitivity.",
+    aliases: ["fasting insulin", "serum insulin", "fasting serum insulin", "insulin fasting", "insulin"],
+  },
+  c_peptide: {
+    canonicalKey: "c_peptide",
+    displayName: "C-Peptide",
+    category: "Sugar",
+    standardUnit: "ng/mL",
+    defaultLow: 0.8,
+    defaultHigh: 3.1,
+    description: "Direct indicator of endogenous pancreatic beta-cell insulin synthesis.",
+    aliases: ["c-peptide", "c peptide", "connecting peptide"],
+  },
+  homa_ir: {
+    canonicalKey: "homa_ir",
+    displayName: "HOMA-IR (Insulin Resistance)",
+    category: "Sugar",
+    standardUnit: "index",
+    defaultLow: 0.5,
+    defaultHigh: 1.9,
+    description: "Homeostatic Model Assessment score estimating insulin resistance.",
+    aliases: ["homa-ir", "homa ir", "insulin resistance index"],
+  },
+
+  // ==================== 4. THYROID ====================
+  tsh: {
+    canonicalKey: "tsh",
+    displayName: "Thyroid Stimulating Hormone (TSH)",
+    category: "Thyroid",
+    standardUnit: "uIU/mL",
+    defaultLow: 0.4,
+    defaultHigh: 4.0,
+    description: "Pituitary messenger hormone directing thyroid hormone release.",
+    aliases: ["tsh", "thyroid stimulating hormone", "thyrotropin", "ultrasensitive tsh", "tsh3"],
+  },
+  free_t3: {
+    canonicalKey: "free_t3",
+    displayName: "Free Triiodothyronine (Free T3)",
+    category: "Thyroid",
+    standardUnit: "pg/mL",
+    defaultLow: 2.0,
+    defaultHigh: 4.4,
+    description: "Active unbound metabolic thyroid hormone.",
+    aliases: ["free t3", "ft3", "triiodothyronine free", "t3 free"],
+  },
+  free_t4: {
+    canonicalKey: "free_t4",
+    displayName: "Free Thyroxine (Free T4)",
+    category: "Thyroid",
+    standardUnit: "ng/dL",
+    defaultLow: 0.8,
+    defaultHigh: 1.8,
+    description: "Main unbound circulating prohormone secreted by the thyroid gland.",
+    aliases: ["free t4", "ft4", "thyroxine free", "t4 free"],
+  },
+  t3_total: {
+    canonicalKey: "t3_total",
+    displayName: "Total T3",
+    category: "Thyroid",
+    standardUnit: "ng/dL",
+    defaultLow: 75,
+    defaultHigh: 200,
+    description: "Total bound and unbound circulating triiodothyronine.",
+    aliases: ["total t3", "t3", "triiodothyronine total", "serum t3"],
+  },
+  t4_total: {
+    canonicalKey: "t4_total",
+    displayName: "Total T4",
+    category: "Thyroid",
+    standardUnit: "ug/dL",
+    defaultLow: 4.5,
+    defaultHigh: 12.0,
+    description: "Total bound and unbound circulating thyroxine.",
+    aliases: ["total t4", "t4", "thyroxine total", "serum t4"],
+  },
+  anti_tpo: {
+    canonicalKey: "anti_tpo",
+    displayName: "Thyroid Peroxidase Antibodies (Anti-TPO)",
+    category: "Thyroid",
+    standardUnit: "IU/mL",
+    defaultLow: 0,
+    defaultHigh: 34,
+    description: "Autoantibody marker for Hashimoto's thyroiditis and thyroid autoimmunity.",
+    aliases: ["anti-tpo", "anti tpo", "thyroid peroxidase antibodies", "tpo antibodies", "tpoab"],
+  },
+  anti_tg: {
+    canonicalKey: "anti_tg",
+    displayName: "Thyroglobulin Antibodies (Anti-TG)",
+    category: "Thyroid",
+    standardUnit: "IU/mL",
+    defaultLow: 0,
+    defaultHigh: 115,
+    description: "Autoantibody targeted against thyroid storage protein thyroglobulin.",
+    aliases: ["anti-tg", "anti tg", "thyroglobulin antibodies", "tgab"],
+  },
+
+  // ==================== 5. LIVER ====================
+  alt: {
+    canonicalKey: "alt",
+    displayName: "Alanine Aminotransferase (ALT/SGPT)",
+    category: "Liver",
+    standardUnit: "U/L",
+    defaultLow: 7,
+    defaultHigh: 55,
+    description: "Enzyme concentrated in hepatocytes; sensitive marker of liver cell injury.",
+    aliases: ["alt", "sgpt", "alanine transaminase", "alanine aminotransferase", "serum glutamic pyruvic transaminase"],
+  },
+  ast: {
+    canonicalKey: "ast",
+    displayName: "Aspartate Aminotransferase (AST/SGOT)",
+    category: "Liver",
+    standardUnit: "U/L",
+    defaultLow: 8,
+    defaultHigh: 48,
+    description: "Enzyme present in liver, heart, and skeletal muscle.",
+    aliases: ["ast", "sgot", "aspartate transaminase", "aspartate aminotransferase", "serum glutamic oxaloacetic transaminase"],
+  },
+  alp: {
+    canonicalKey: "alp",
+    displayName: "Alkaline Phosphatase (ALP)",
+    category: "Liver",
+    standardUnit: "U/L",
+    defaultLow: 44,
+    defaultHigh: 147,
+    description: "Biliary tract and skeletal enzyme reflecting bile duct function and bone turnover.",
+    aliases: ["alp", "alkaline phosphatase", "alk phos", "alkaline phos"],
+  },
+  ggt: {
+    canonicalKey: "ggt",
+    displayName: "Gamma-Glutamyl Transferase (GGT)",
+    category: "Liver",
+    standardUnit: "U/L",
+    defaultLow: 9,
+    defaultHigh: 48,
+    description: "Highly sensitive marker for biliary epithelial injury and alcohol impact.",
+    aliases: ["ggt", "ggtp", "gamma glutamyl transferase", "gamma-glutamyl transferase"],
+  },
+  bilirubin_total: {
+    canonicalKey: "bilirubin_total",
+    displayName: "Total Bilirubin",
+    category: "Liver",
+    standardUnit: "mg/dL",
+    defaultLow: 0.2,
+    defaultHigh: 1.2,
+    description: "Total yellow breakdown pigment from hemoglobin metabolism.",
+    aliases: ["total bilirubin", "bilirubin, total", "serum bilirubin", "bilirubin total"],
+  },
+  bilirubin_direct: {
+    canonicalKey: "bilirubin_direct",
+    displayName: "Direct (Conjugated) Bilirubin",
+    category: "Liver",
+    standardUnit: "mg/dL",
+    defaultLow: 0.0,
+    defaultHigh: 0.3,
+    description: "Water-soluble conjugated bilirubin processed by the liver.",
+    aliases: ["direct bilirubin", "bilirubin direct", "conjugated bilirubin"],
+  },
+  bilirubin_indirect: {
+    canonicalKey: "bilirubin_indirect",
+    displayName: "Indirect Bilirubin",
+    category: "Liver",
+    standardUnit: "mg/dL",
+    defaultLow: 0.2,
+    defaultHigh: 0.8,
+    description: "Unconjugated bilirubin bound to albumin prior to hepatic clearance.",
+    aliases: ["indirect bilirubin", "bilirubin indirect", "unconjugated bilirubin"],
+  },
+  total_protein: {
+    canonicalKey: "total_protein",
+    displayName: "Total Protein",
+    category: "Liver",
+    standardUnit: "g/dL",
+    defaultLow: 6.0,
+    defaultHigh: 8.3,
+    description: "Sum of circulating albumin and globulin in blood serum.",
+    aliases: ["total protein", "protein, total", "serum total protein", "protein total"],
+  },
+  albumin: {
+    canonicalKey: "albumin",
+    displayName: "Albumin",
+    category: "Liver",
+    standardUnit: "g/dL",
+    defaultLow: 3.5,
+    defaultHigh: 5.0,
+    description: "Predominant liver-synthesized plasma protein maintaining oncotic pressure.",
+    aliases: ["albumin", "serum albumin", "alb"],
+  },
+  globulin: {
+    canonicalKey: "globulin",
+    displayName: "Globulin",
+    category: "Liver",
+    standardUnit: "g/dL",
+    defaultLow: 2.0,
+    defaultHigh: 3.5,
+    description: "Group of serum proteins encompassing immunoglobulins, enzymes, and transport carriers.",
+    aliases: ["globulin", "serum globulin"],
+  },
+  ag_ratio: {
+    canonicalKey: "ag_ratio",
+    displayName: "Albumin / Globulin (A/G) Ratio",
+    category: "Liver",
+    standardUnit: "ratio",
+    defaultLow: 1.1,
+    defaultHigh: 2.5,
+    description: "Proportion of albumin to total globulin proteins.",
+    aliases: ["a/g ratio", "albumin to globulin ratio", "albumin/globulin ratio", "ag ratio"],
+  },
+  ldh: {
+    canonicalKey: "ldh",
+    displayName: "Lactate Dehydrogenase (LDH)",
+    category: "Liver",
+    standardUnit: "U/L",
+    defaultLow: 140,
+    defaultHigh: 280,
+    description: "Intracellular enzyme elevated upon widespread cellular damage.",
+    aliases: ["ldh", "lactate dehydrogenase", "lactic dehydrogenase"],
+  },
+
+  // ==================== 6. KIDNEY ====================
+  creatinine: {
+    canonicalKey: "creatinine",
+    displayName: "Serum Creatinine",
+    category: "Kidney",
+    standardUnit: "mg/dL",
+    defaultLow: 0.7,
+    defaultHigh: 1.3,
+    description: "Muscular metabolic byproduct filtered continuously by renal glomeruli.",
+    aliases: ["creatinine", "serum creatinine", "creat", "cr"],
+  },
+  urea: {
+    canonicalKey: "urea",
+    displayName: "Blood Urea",
+    category: "Kidney",
+    standardUnit: "mg/dL",
+    defaultLow: 15,
+    defaultHigh: 45,
+    description: "Nitrogenous byproduct formed from dietary protein deamination.",
+    aliases: ["urea", "blood urea", "serum urea"],
+  },
+  bun: {
+    canonicalKey: "bun",
+    displayName: "Blood Urea Nitrogen (BUN)",
+    category: "Kidney",
+    standardUnit: "mg/dL",
+    defaultLow: 7,
+    defaultHigh: 20,
+    description: "Amount of nitrogen in your blood that comes from urea waste.",
+    aliases: ["bun", "blood urea nitrogen", "urea nitrogen"],
+  },
+  egfr: {
+    canonicalKey: "egfr",
+    displayName: "Estimated GFR (eGFR)",
+    category: "Kidney",
+    standardUnit: "mL/min/1.73m2",
+    defaultLow: 60,
+    defaultHigh: 120,
+    description: "Estimated rate at which kidneys filter blood; key indicator of kidney health.",
+    aliases: ["egfr", "gfr", "estimated glomerular filtration rate", "egfr ckd-epi", "ckd-epi"],
+  },
+  uric_acid: {
+    canonicalKey: "uric_acid",
+    displayName: "Uric Acid",
+    category: "Kidney",
+    standardUnit: "mg/dL",
+    defaultLow: 3.5,
+    defaultHigh: 7.2,
+    description: "Purine breakdown product whose accumulation can precipitate gout or kidney stones.",
+    aliases: ["uric acid", "serum uric acid", "urate"],
+  },
+  bun_creat_ratio: {
+    canonicalKey: "bun_creat_ratio",
+    displayName: "BUN / Creatinine Ratio",
+    category: "Kidney",
+    standardUnit: "ratio",
+    defaultLow: 10,
+    defaultHigh: 20,
+    description: "Diagnostic ratio differentiating prerenal azotemia from intrinsic renal pathology.",
+    aliases: ["bun/creatinine ratio", "bun / creat ratio", "urea to creatinine ratio", "bun/cr ratio"],
+  },
+  cystatin_c: {
+    canonicalKey: "cystatin_c",
+    displayName: "Cystatin C",
+    category: "Kidney",
+    standardUnit: "mg/L",
+    defaultLow: 0.6,
+    defaultHigh: 1.0,
+    description: "Muscle-independent endogenous biomarker for accurate glomerular filtration estimation.",
+    aliases: ["cystatin c", "serum cystatin c", "cystatin-c"],
+  },
+
+  // ==================== 7. VITAMINS & MINERALS ====================
+  vitamin_d: {
+    canonicalKey: "vitamin_d",
+    displayName: "Vitamin D (25-OH)",
+    category: "Vitamins",
+    standardUnit: "ng/mL",
+    defaultLow: 30,
+    defaultHigh: 100,
+    description: "Circulating fat-soluble vitamin essential for bone density and innate immunity.",
+    aliases: [
+      "vitamin d, 25-hydroxy",
+      "vitamin d 25-hydroxy",
+      "25-hydroxy vitamin d",
+      "25-oh vitamin d",
+      "25(oh)d",
+      "vitamin d total",
+      "vitamin d",
+      "vit d",
+    ],
+  },
+  vitamin_b12: {
+    canonicalKey: "vitamin_b12",
+    displayName: "Vitamin B12 (Cobalamin)",
+    category: "Vitamins",
+    standardUnit: "pg/mL",
+    defaultLow: 200,
+    defaultHigh: 900,
+    description: "Water-soluble vitamin required for neurological maintenance and hematopoiesis.",
+    aliases: ["vitamin b12", "vitamin b-12", "vit b12", "vit b-12", "cobalamin", "b12", "cyanocobalamin"],
+  },
+  folate: {
+    canonicalKey: "folate",
+    displayName: "Folate (Vitamin B9)",
+    category: "Vitamins",
+    standardUnit: "ng/mL",
+    defaultLow: 3.0,
+    defaultHigh: 20.0,
+    description: "Essential B-vitamin necessary for DNA synthesis and cellular replication.",
+    aliases: ["folate", "folic acid", "vitamin b9", "serum folate"],
+  },
+  ferritin: {
+    canonicalKey: "ferritin",
+    displayName: "Ferritin",
+    category: "Vitamins",
+    standardUnit: "ng/mL",
+    defaultLow: 30,
+    defaultHigh: 400,
+    description: "Intracellular protein complex reflecting total stored iron reserves.",
+    aliases: ["ferritin", "serum ferritin"],
+  },
+  iron_serum: {
+    canonicalKey: "iron_serum",
+    displayName: "Serum Iron",
+    category: "Vitamins",
+    standardUnit: "ug/dL",
+    defaultLow: 60,
+    defaultHigh: 170,
+    description: "Circulating transferrin-bound iron available for erythropoiesis.",
+    aliases: ["serum iron", "iron", "fe", "iron, total"],
+  },
+  tibc: {
+    canonicalKey: "tibc",
+    displayName: "Total Iron Binding Capacity (TIBC)",
+    category: "Vitamins",
+    standardUnit: "ug/dL",
+    defaultLow: 250,
+    defaultHigh: 450,
+    description: "Indirect measurement of serum transferrin carrying capacity.",
+    aliases: ["tibc", "total iron binding capacity"],
+  },
+  transferrin_sat: {
+    canonicalKey: "transferrin_sat",
+    displayName: "Transferrin Saturation",
+    category: "Vitamins",
+    standardUnit: "%",
+    defaultLow: 20,
+    defaultHigh: 50,
+    description: "Percentage of transferrin iron-binding sites occupied by iron.",
+    aliases: ["transferrin saturation", "iron saturation", "% transferrin saturation", "tsat"],
+  },
+
+  // ==================== 8. HORMONES ====================
+  testosterone_total: {
+    canonicalKey: "testosterone_total",
+    displayName: "Total Testosterone",
+    category: "Hormones",
+    standardUnit: "ng/dL",
+    defaultLow: 300,
+    defaultHigh: 1000,
+    description: "Primary androgenic anabolic steroid hormone.",
+    aliases: ["total testosterone", "testosterone, total", "serum testosterone", "testosterone"],
+  },
+  testosterone_free: {
+    canonicalKey: "testosterone_free",
+    displayName: "Free Testosterone",
+    category: "Hormones",
+    standardUnit: "pg/mL",
+    defaultLow: 9.0,
+    defaultHigh: 30.0,
+    description: "Unbound, biologically active circulating fraction of testosterone.",
+    aliases: ["free testosterone", "testosterone, free", "direct free testosterone"],
+  },
+  estradiol: {
+    canonicalKey: "estradiol",
+    displayName: "Estradiol (E2)",
+    category: "Hormones",
+    standardUnit: "pg/mL",
+    defaultLow: 10,
+    defaultHigh: 50,
+    description: "Principal female sex hormone in non-pregnant individuals.",
+    aliases: ["estradiol", "e2", "serum estradiol", "estradiol-17 beta"],
+  },
+  progesterone: {
+    canonicalKey: "progesterone",
+    displayName: "Progesterone",
+    category: "Hormones",
+    standardUnit: "ng/mL",
+    defaultLow: 0.1,
+    defaultHigh: 20.0,
+    description: "Steroid hormone involved in reproductive cycles and embryogenesis.",
+    aliases: ["progesterone", "serum progesterone"],
+  },
+  prolactin: {
+    canonicalKey: "prolactin",
+    displayName: "Prolactin",
+    category: "Hormones",
+    standardUnit: "ng/mL",
+    defaultLow: 2.0,
+    defaultHigh: 18.0,
+    description: "Anterior pituitary hormone regulating lactation and reproductive function.",
+    aliases: ["prolactin", "prl", "serum prolactin"],
+  },
+  cortisol_am: {
+    canonicalKey: "cortisol_am",
+    displayName: "Morning Cortisol (AM)",
+    category: "Hormones",
+    standardUnit: "ug/dL",
+    defaultLow: 6.0,
+    defaultHigh: 23.0,
+    description: "Adrenal glucocorticoid hormone peaking in early morning to modulate stress and glucose.",
+    aliases: ["cortisol", "serum cortisol", "cortisol am", "morning cortisol", "cortisol, total"],
+  },
+  dhea_s: {
+    canonicalKey: "dhea_s",
+    displayName: "DHEA-Sulfate",
+    category: "Hormones",
+    standardUnit: "ug/dL",
+    defaultLow: 80,
+    defaultHigh: 400,
+    description: "Adrenal precursor steroid hormone reflective of adrenal androgen output.",
+    aliases: ["dhea-s", "dhea sulfate", "dheas", "dehydroepiandrosterone sulfate"],
+  },
+  pth: {
+    canonicalKey: "pth",
+    displayName: "Parathyroid Hormone (PTH Intact)",
+    category: "Hormones",
+    standardUnit: "pg/mL",
+    defaultLow: 15,
+    defaultHigh: 65,
+    description: "Parathyroid peptide hormone coordinating systemic calcium and phosphate homeostasis.",
+    aliases: ["pth", "parathyroid hormone", "intact pth", "pth, intact"],
+  },
+
+  // ==================== 9. OTHER (ELECTROLYTES & INFLAMMATION) ====================
+  calcium: {
+    canonicalKey: "calcium",
+    displayName: "Serum Calcium",
+    category: "Other",
+    standardUnit: "mg/dL",
+    defaultLow: 8.5,
+    defaultHigh: 10.5,
+    description: "Essential cation governing bone mineral matrix, muscle contraction, and cardiac action potentials.",
+    aliases: ["calcium", "serum calcium", "total calcium", "ca"],
+  },
+  sodium: {
+    canonicalKey: "sodium",
+    displayName: "Serum Sodium",
+    category: "Other",
+    standardUnit: "mmol/L",
+    defaultLow: 135,
+    defaultHigh: 145,
+    description: "Dominant extracellular cation maintaining vascular volume and neuromuscular excitability.",
+    aliases: ["sodium", "serum sodium", "na"],
+  },
+  potassium: {
+    canonicalKey: "potassium",
+    displayName: "Serum Potassium",
+    category: "Other",
+    standardUnit: "mmol/L",
+    defaultLow: 3.5,
+    defaultHigh: 5.1,
+    description: "Dominant intracellular cation vital for cardiac conduction and membrane resting potentials.",
+    aliases: ["potassium", "serum potassium", "k"],
+  },
+  chloride: {
+    canonicalKey: "chloride",
+    displayName: "Serum Chloride",
+    category: "Other",
+    standardUnit: "mmol/L",
+    defaultLow: 96,
+    defaultHigh: 106,
+    description: "Major extracellular anion maintaining electroneutrality and acid-base equilibrium.",
+    aliases: ["chloride", "serum chloride", "cl"],
+  },
+  bicarbonate: {
+    canonicalKey: "bicarbonate",
+    displayName: "Bicarbonate (CO2)",
+    category: "Other",
+    standardUnit: "mmol/L",
+    defaultLow: 22,
+    defaultHigh: 29,
+    description: "Primary physiological metabolic acid-base buffer.",
+    aliases: ["bicarbonate", "co2", "total co2", "carbon dioxide", "hco3"],
+  },
+  magnesium: {
+    canonicalKey: "magnesium",
+    displayName: "Serum Magnesium",
+    category: "Other",
+    standardUnit: "mg/dL",
+    defaultLow: 1.7,
+    defaultHigh: 2.4,
+    description: "Cofactor in over 300 enzymatic reactions regulating nerve transmission and energy production.",
+    aliases: ["magnesium", "serum magnesium", "mg++", "serum mg"],
+  },
+  phosphorus: {
+    canonicalKey: "phosphorus",
+    displayName: "Serum Phosphorus",
+    category: "Other",
+    standardUnit: "mg/dL",
+    defaultLow: 2.5,
+    defaultHigh: 4.5,
+    description: "Anion crucial for ATP cellular energetics, nucleic acids, and bone structural mineral.",
+    aliases: ["phosphorus", "phosphate", "serum phosphorus", "inorganic phosphorus"],
+  },
+  crp: {
+    canonicalKey: "crp",
+    displayName: "C-Reactive Protein (hs-CRP)",
+    category: "Other",
+    standardUnit: "mg/L",
+    defaultLow: 0.0,
+    defaultHigh: 3.0,
+    description: "Acute-phase hepatic reactant indicating systemic inflammation and atherogenic risk.",
+    aliases: ["crp", "hs-crp", "c-reactive protein", "high sensitivity crp", "hs crp"],
+  },
+};
+
+function normalizeSearchToken(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Normalizes any raw printed string from a lab report to its canonical MetricDefinition
+ */
+export function matchMetric(rawName: string): MetricDefinition | null {
+  const clean = normalizeSearchToken(rawName);
+  if (!clean) return null;
+
+  // 1. Direct exact alias match (longest aliases first)
+  for (const def of Object.values(METRIC_DICTIONARY)) {
+    for (const alias of def.aliases) {
+      if (clean === normalizeSearchToken(alias)) {
+        return def;
+      }
+    }
+  }
+
+  // 2. Sub-phrase boundary match
+  for (const def of Object.values(METRIC_DICTIONARY)) {
+    const sortedAliases = [...def.aliases].sort((a, b) => b.length - a.length);
+    for (const alias of sortedAliases) {
+      const cleanAlias = normalizeSearchToken(alias);
+      if (!cleanAlias) continue;
+      const escaped = cleanAlias.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "i");
+      if (regex.test(clean)) {
+        return def;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Evaluates clinical status flag given measured value and reference boundaries
+ */
+export function evaluateResultFlag(
+  value: number,
+  refLow?: number,
+  refHigh?: number
+): ResultFlag {
+  if (refLow !== undefined && refHigh !== undefined) {
+    const span = refHigh - refLow;
+    // 10% tolerance boundary for borderline readings
+    const margin = Math.max(span * 0.15, (refHigh || 100) * 0.1);
+
+    if (value < refLow) {
+      if (value >= refLow - margin) return "borderline";
+      return "low";
+    }
+    if (value > refHigh) {
+      if (value <= refHigh + margin) return "borderline";
+      return "high";
+    }
+    return "normal";
+  }
+
+  if (refLow !== undefined && refHigh === undefined) {
+    const margin = (refLow || 50) * 0.1;
+    if (value < refLow) {
+      if (value >= refLow - margin) return "borderline";
+      return "low";
+    }
+    return "normal";
+  }
+
+  if (refHigh !== undefined && refLow === undefined) {
+    const margin = (refHigh || 100) * 0.1;
+    if (value > refHigh) {
+      if (value <= refHigh + margin) return "borderline";
+      return "high";
+    }
+    return "normal";
+  }
+
+  return "normal";
+}
