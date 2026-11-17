@@ -127,8 +127,8 @@ export function BiomarkerCard({
       }}
       title={displayName}
       className={cn(
-        "group relative p-4 rounded-xl bg-[var(--bg-card)] border cursor-pointer text-left select-none",
-        "h-full flex flex-col justify-between gap-3",
+        "group relative p-3.5 rounded-xl bg-[var(--bg-card)] border cursor-pointer text-left select-none",
+        "h-full flex flex-col justify-between gap-2.5",
         "transition-[border-color] duration-[120ms] ease-out",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         isSelected
@@ -140,7 +140,7 @@ export function BiomarkerCard({
     >
       {/* Row 1: Short name + status badge (only if abnormal or borderline) */}
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[14px] font-medium text-[var(--text-primary)] leading-tight">
+        <span className="text-[13px] font-medium text-[var(--text-primary)] leading-tight">
           {shortName}
         </span>
         {isAbnormal && (
@@ -153,10 +153,10 @@ export function BiomarkerCard({
       {/* Row 2: Value + unit + sparkline */}
       <div className="flex items-end justify-between gap-2">
         <div className="flex items-baseline gap-1 tabular-nums">
-          <span className="text-[28px] font-semibold leading-none tracking-[-0.01em] text-[var(--text-primary)] tabular-nums">
+          <span className="text-[24px] font-semibold leading-none tracking-[-0.01em] text-[var(--text-primary)] tabular-nums">
             {latestResult.value}
           </span>
-          <span className="text-[13px] text-[var(--text-muted)] font-normal ml-0.5">
+          <span className="text-[12px] text-[var(--text-muted)] font-normal ml-0.5">
             {latestResult.unit}
           </span>
         </div>
@@ -164,8 +164,8 @@ export function BiomarkerCard({
         <Sparkline
           values={sparklineValues.length > 0 ? sparklineValues : [latestResult.value]}
           flag={latestResult.flag}
-          width={64}
-          height={24}
+          width={60}
+          height={20}
         />
       </div>
 

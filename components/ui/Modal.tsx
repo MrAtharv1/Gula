@@ -73,9 +73,9 @@ export function Modal({
       {/* Sheet on mobile (slides up), Centered dialog on desktop */}
       <div
         className={cn(
-          "w-full bg-[var(--bg-primary)] border-t sm:border border-[var(--border-subtle)] shadow-xl",
-          "rounded-t-2xl sm:rounded-2xl max-h-[88vh] flex flex-col overflow-hidden",
-          "animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200",
+          "w-full bg-[var(--bg-surface)] border-t sm:border border-[var(--border-subtle)] shadow-lg",
+          "rounded-t-2xl sm:rounded-xl max-h-[88vh] flex flex-col overflow-hidden",
+          "animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-150 ease-out",
           maxWidths[maxWidth],
           className
         )}
@@ -87,22 +87,22 @@ export function Modal({
 
         {/* Modal Header */}
         {(title || description) && (
-          <div className="flex items-center justify-between p-5 pb-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center justify-between p-4 sm:p-5 pb-3 sm:pb-4 border-b border-[var(--border-subtle)]">
             <div>
               {title && (
-                <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
+                <h3 className="text-base font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
                   {description}
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)] transition-colors tap-target cursor-pointer"
+              className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)] transition-colors tap-target cursor-pointer"
               aria-label="Close dialog"
             >
               <X className="w-4 h-4" />
@@ -111,7 +111,7 @@ export function Modal({
         )}
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto flex-1">{children}</div>
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );

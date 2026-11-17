@@ -128,22 +128,22 @@ export function PdfPreview({
   return (
     <div className={`flex flex-col items-center w-full ${className || ""}`}>
       {/* Canvas Container */}
-      <div className="relative w-full max-h-[380px] sm:max-h-[440px] overflow-auto flex items-center justify-center p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] shadow-inner">
+      <div className="relative w-full max-h-[380px] sm:max-h-[440px] overflow-auto flex items-center justify-center p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/80 backdrop-blur-xs z-10 gap-2">
             <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
-            <span className="text-xs text-[var(--text-muted)]">Rendering preview...</span>
+            <span className="text-[12px] text-[var(--text-muted)]">Rendering preview...</span>
           </div>
         )}
 
         {renderError && (
-          <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-rose-500">
+          <div className="flex flex-col items-center gap-2 p-6 text-center text-[12px] text-[var(--status-abnormal-text)]">
             <AlertCircle className="w-5 h-5" />
             <span>{renderError}</span>
           </div>
         )}
 
-        <canvas ref={canvasRef} className="rounded-lg shadow-sm max-w-full" />
+        <canvas ref={canvasRef} className="rounded-lg max-w-full" />
       </div>
 
       {/* Pagination Controls */}

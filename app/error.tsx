@@ -16,17 +16,17 @@ export default function RootError({
   }, [error]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--bg-secondary)]">
-      <div className="max-w-md w-full p-8 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-center space-y-4 shadow-sm">
-        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--bg-primary)]">
+      <div className="max-w-md w-full p-8 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-center space-y-4">
+        <div className="w-12 h-12 rounded-xl bg-[var(--status-abnormal-bg)] text-[var(--status-abnormal-text)] flex items-center justify-center mx-auto">
           <AlertCircle className="w-6 h-6" />
         </div>
 
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
+          <h2 className="text-lg font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
             Something went wrong
           </h2>
-          <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+          <p className="text-[13px] text-[var(--text-muted)] mt-1.5 leading-relaxed">
             Gula encountered an unexpected error. Your saved health reports and data remain safe on this device.
           </p>
         </div>

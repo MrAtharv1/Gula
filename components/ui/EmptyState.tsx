@@ -28,20 +28,20 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center p-8 sm:p-14 text-center rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs",
+        "flex flex-col items-center justify-center p-8 sm:p-14 text-center rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]",
         className
       )}
     >
       {icon && (
-        <div className="w-12 h-12 rounded-2xl bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-muted)] mb-3 shadow-xs">
+        <div className="w-12 h-12 rounded-xl bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-muted)] mb-3">
           {icon}
         </div>
       )}
-      <h3 className="text-base sm:text-lg font-semibold tracking-tight text-[var(--text-primary)]">
+      <h3 className="text-base sm:text-lg font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
         {title}
       </h3>
       {description && (
-        <p className="text-xs text-[var(--text-secondary)] mt-1 mb-5 max-w-sm leading-relaxed">
+        <p className="text-[13px] text-[var(--text-muted)] mt-1 mb-5 max-w-sm leading-relaxed">
           {description}
         </p>
       )}

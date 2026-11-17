@@ -431,7 +431,7 @@ export default function GulaApp() {
                           {needsAttentionSummaries.length}
                         </span>
                       </div>
-                      <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] auto-rows-fr">
+                      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
                         {needsAttentionSummaries.map((summary) => (
                           <BiomarkerCard
                             key={`attention-${summary.metricKey}`}
@@ -455,7 +455,7 @@ export default function GulaApp() {
                             {items.length}
                           </span>
                         </div>
-                        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] auto-rows-fr">
+                        <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
                           {items.map((summary) => (
                             <BiomarkerCard
                               key={summary.metricKey}
@@ -567,7 +567,7 @@ export default function GulaApp() {
                           {summaries.length}
                         </span>
                       </div>
-                      <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] auto-rows-fr">
+                      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
                         {summaries.map((s) => (
                           <BiomarkerCard
                             key={s.metricKey}

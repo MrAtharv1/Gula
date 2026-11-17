@@ -140,7 +140,7 @@ export function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualEntryModa
     >
       <div className="space-y-4">
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
+          <div className="p-3 rounded-xl bg-[var(--status-abnormal-bg)] border border-[var(--status-abnormal-border)] text-[12px] text-[var(--status-abnormal-text)]">
             {error}
           </div>
         )}
@@ -286,7 +286,7 @@ export function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualEntryModa
                     {rows.length > 1 && (
                       <button
                         onClick={() => handleRemoveRow(row.id)}
-                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-500 transition-colors tap-target cursor-pointer"
+                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--status-abnormal-text)] transition-colors tap-target cursor-pointer"
                         aria-label="Delete row"
                       >
                         <Trash2 className="w-4 h-4" />

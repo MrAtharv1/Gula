@@ -25,7 +25,7 @@ export function DashboardSkeleton() {
       {/* Cards Grid Skeleton */}
       <div className="space-y-4">
         <Skeleton className="h-4 w-32 rounded" />
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] auto-rows-fr">
+        <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}

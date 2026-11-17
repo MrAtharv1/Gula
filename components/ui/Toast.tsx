@@ -17,9 +17,9 @@ export function ToastContainer() {
     >
       {toasts.map((t) => {
         const icons = {
-          success: <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />,
-          error: <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />,
-          info: <Info className="w-4 h-4 text-blue-500 shrink-0" />,
+          success: <CheckCircle2 className="w-4 h-4 text-[var(--status-normal-dot)] shrink-0" />,
+          error: <AlertCircle className="w-4 h-4 text-[var(--status-abnormal-dot)] shrink-0" />,
+          info: <Info className="w-4 h-4 text-[var(--accent)] shrink-0" />,
         };
 
         return (
@@ -27,7 +27,7 @@ export function ToastContainer() {
             key={t.id}
             role="status"
             className={cn(
-              "pointer-events-auto p-3.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-lg",
+              "pointer-events-auto p-3.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-md",
               "flex items-center justify-between gap-3 text-xs font-medium text-[var(--text-primary)]",
               "animate-in fade-in slide-in-from-bottom-2 duration-150"
             )}

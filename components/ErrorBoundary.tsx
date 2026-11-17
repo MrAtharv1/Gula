@@ -35,16 +35,16 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="p-6 sm:p-10 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-center max-w-lg mx-auto my-8 space-y-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+        <div className="p-6 sm:p-10 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-center max-w-lg mx-auto my-8 space-y-4">
+          <div className="w-10 h-10 rounded-xl bg-[var(--status-abnormal-bg)] text-[var(--status-abnormal-text)] flex items-center justify-center mx-auto">
             <AlertCircle className="w-5 h-5" />
           </div>
 
           <div>
-            <h3 className="text-base font-semibold text-[var(--text-primary)]">
+            <h3 className="text-base font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
               {this.props.fallbackTitle || "Couldn't load this section"}
             </h3>
-            <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-sm mx-auto leading-relaxed">
+            <p className="text-[12px] text-[var(--text-secondary)] mt-1 max-w-sm mx-auto leading-relaxed">
               {this.props.fallbackMessage ||
                 "An unexpected view error occurred. Your health records are safe in local storage."}
             </p>

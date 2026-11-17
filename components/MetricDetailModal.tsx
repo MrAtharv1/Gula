@@ -96,19 +96,19 @@ export function MetricDetailModal({
       description={`${category} • Latest reading`}
       className="max-w-2xl max-h-[90vh] overflow-y-auto"
     >
-      <div className="space-y-6 pt-2">
+      <div className="space-y-5 pt-1">
         {/* Top Metric Header Card */}
-        <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-4">
+        <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
+              <span className="text-[12px] font-medium text-[var(--text-muted)] block mb-1">
                 {category}
               </span>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--text-primary)]">
+                <span className="text-[28px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] tabular-nums">
                   {displayValue}
                 </span>
-                <span className="text-sm font-semibold text-[var(--text-muted)]">
+                <span className="text-[13px] font-medium text-[var(--text-muted)]">
                   {targetUnit}
                 </span>
               </div>
@@ -146,7 +146,7 @@ export function MetricDetailModal({
           </div>
 
           {/* Test Metadata & Change Row */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-subtle)] text-[12px] text-[var(--text-muted)]">
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
@@ -161,15 +161,15 @@ export function MetricDetailModal({
             </div>
 
             {previousResult && changeValue !== undefined && (
-              <div className="inline-flex items-center gap-1 font-medium text-[var(--text-primary)]">
+              <div className="inline-flex items-center gap-1 font-medium text-[var(--text-primary)] tabular-nums">
                 {changeValue > 0 ? (
                   <>
-                    <ArrowUp className="w-3 h-3 text-rose-500" />
+                    <ArrowUp className="w-3 h-3 text-[var(--status-abnormal-dot)]" />
                     <span>+{Math.abs(changeValue)} vs previous</span>
                   </>
                 ) : changeValue < 0 ? (
                   <>
-                    <ArrowDown className="w-3 h-3 text-emerald-500" />
+                    <ArrowDown className="w-3 h-3 text-[var(--status-normal-dot)]" />
                     <span>-{Math.abs(changeValue)} vs previous</span>
                   </>
                 ) : (
@@ -182,7 +182,7 @@ export function MetricDetailModal({
 
         {/* Clinical Description from Dictionary */}
         {dictDef?.description && (
-          <div className="p-3.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-start gap-2.5 text-xs">
+          <div className="p-3.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-start gap-2.5 text-[12px]">
             <Info className="w-4 h-4 text-[var(--text-muted)] shrink-0 mt-0.5" />
             <p className="text-[var(--text-secondary)] leading-relaxed">
               {dictDef.description}
@@ -192,8 +192,8 @@ export function MetricDetailModal({
 
         {/* Interactive Trend Chart */}
         <div>
-          <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
-            Historical Trend ({chartHistory.length} {chartHistory.length === 1 ? "record" : "records"})
+          <h4 className="text-[12px] font-medium text-[var(--text-muted)] mb-2.5">
+            Historical trend ({chartHistory.length} {chartHistory.length === 1 ? "record" : "records"})
           </h4>
           <BiomarkerTrendChart
             history={chartHistory}
@@ -207,37 +207,47 @@ export function MetricDetailModal({
         {/* History Log Table */}
         {history.length > 1 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              Recorded Results
+            <h4 className="text-[12px] font-medium text-[var(--text-muted)]">
+              Recorded results
             </h4>
             <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden divide-y divide-[var(--border-subtle)] bg-[var(--bg-card)]">
-              {history.map((record) => (
-                <div
-                  key={record.id}
-                  className="px-3.5 py-2.5 flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-[var(--text-primary)]">
-                      {formatDate(record.reportDate)}
-                    </span>
-                    <span className="text-[11px] text-[var(--text-muted)] truncate max-w-[120px] sm:max-w-[200px]">
-                      {record.fileName.replace(/\.pdf$/i, "")}
-                    </span>
-                  </div>
+              {history.map((record) => {
+                const recStatusLabel =
+                  record.flag === "high"
+                    ? "High"
+                    : record.flag === "low"
+                    ? "Low"
+                    : record.flag === "borderline"
+                    ? "Borderline"
+                    : "Normal";
+                return (
+                  <div
+                    key={record.id}
+                    className="px-3.5 py-2.5 flex items-center justify-between text-[12px]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-[var(--text-primary)]">
+                        {formatDate(record.reportDate)}
+                      </span>
+                      <span className="text-[11px] text-[var(--text-muted)] truncate max-w-[120px] sm:max-w-[200px]">
+                        {record.fileName.replace(/\.pdf$/i, "")}
+                      </span>
+                    </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-[var(--text-primary)]">
-                      {useConvertedUnit && isConvertible
-                        ? convertMetricUnit(metricKey, record.value, record.unit, targetUnit).value
-                        : record.value}{" "}
-                      {targetUnit}
-                    </span>
-                    <Badge variant={record.flag} size="sm">
-                      {record.flag}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-[var(--text-primary)] tabular-nums">
+                        {useConvertedUnit && isConvertible
+                          ? convertMetricUnit(metricKey, record.value, record.unit, targetUnit).value
+                          : record.value}{" "}
+                        {targetUnit}
+                      </span>
+                      <Badge variant={record.flag} size="sm">
+                        {recStatusLabel}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

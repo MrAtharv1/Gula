@@ -45,12 +45,12 @@ export function SyncMergeModal({ onComplete }: SyncMergeModalProps) {
           handleChoice("merge");
         }
       }}
-      title="Existing Health Data Found"
+      title="Existing health data found"
     >
-      <div className="space-y-5">
-        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300">
-          <ShieldCheck className="w-5 h-5 shrink-0" />
-          <p className="text-xs leading-relaxed">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--status-normal-bg)] border border-[var(--status-normal-border)] text-[var(--status-normal-text)]">
+          <ShieldCheck className="w-5 h-5 shrink-0 text-[var(--status-normal-dot)]" />
+          <p className="text-[12px] leading-relaxed">
             Signed in as <span className="font-semibold">{user?.email}</span>. We found reports on this device. How would you like to proceed?
           </p>
         </div>
@@ -58,7 +58,7 @@ export function SyncMergeModal({ onComplete }: SyncMergeModalProps) {
         {/* Choice 1: Merge */}
         <div
           onClick={() => !isProcessing && handleChoice("merge")}
-          className="group p-4 rounded-2xl border border-[var(--border-subtle)] hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]/50 transition-all cursor-pointer space-y-1.5"
+          className="group p-4 rounded-xl border border-[var(--border-subtle)] hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]/50 transition-all cursor-pointer space-y-1"
           role="button"
           tabIndex={0}
         >
@@ -67,15 +67,15 @@ export function SyncMergeModal({ onComplete }: SyncMergeModalProps) {
               <div className="w-7 h-7 rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center">
                 <GitMerge className="w-4 h-4" />
               </div>
-              <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+              <h4 className="text-[13px] font-semibold text-[var(--text-primary)]">
                 Merge with your account
               </h4>
             </div>
-            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-[var(--status-normal-bg)] text-[var(--status-normal-text)]">
               Recommended
             </span>
           </div>
-          <p className="text-xs text-[var(--text-secondary)] pl-9 leading-relaxed">
+          <p className="text-[12px] text-[var(--text-secondary)] pl-9 leading-relaxed">
             Upload your existing reports to your private cloud so they become available across all your phones and computers.
           </p>
         </div>
@@ -83,26 +83,26 @@ export function SyncMergeModal({ onComplete }: SyncMergeModalProps) {
         {/* Choice 2: Start Fresh */}
         <div
           onClick={() => !isProcessing && handleChoice("fresh")}
-          className="group p-4 rounded-2xl border border-[var(--border-subtle)] hover:border-amber-500/50 hover:bg-[var(--bg-secondary)]/50 transition-all cursor-pointer space-y-1.5"
+          className="group p-4 rounded-xl border border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-secondary)]/50 transition-all cursor-pointer space-y-1"
           role="button"
           tabIndex={0}
         >
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[var(--bg-card-subtle)] text-[var(--text-secondary)] flex items-center justify-center">
               <Sparkles className="w-4 h-4" />
             </div>
-            <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+            <h4 className="text-[13px] font-semibold text-[var(--text-primary)]">
               Start fresh
             </h4>
           </div>
-          <p className="text-xs text-[var(--text-secondary)] pl-9 leading-relaxed">
+          <p className="text-[12px] text-[var(--text-secondary)] pl-9 leading-relaxed">
             Clear the current device and download only the reports already stored in your cloud account.
           </p>
         </div>
 
         {isProcessing && (
-          <div className="flex items-center justify-center gap-2 py-2 text-xs text-[var(--text-muted)] animate-pulse">
-            <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex items-center justify-center gap-2 py-2 text-[12px] text-[var(--text-muted)] animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
             <span>Synchronizing health records...</span>
           </div>
         )}
