@@ -3,10 +3,19 @@
  * Groups spatial text items by Y coordinate to preserve tabular rows.
  */
 
+export interface PositionedToken {
+  str: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ExtractedPage {
   pageNumber: number;
   lines: string[];
   fullText: string;
+  tokens?: PositionedToken[];
 }
 
 export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ pages: ExtractedPage[]; fullText: string }> {
@@ -99,6 +108,7 @@ export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ 
       pageNumber: i,
       lines,
       fullText: pageFullText,
+      tokens: items,
     });
     fullTextParts.push(pageFullText);
   }
