@@ -49,6 +49,7 @@ describe("Phase 6: Upload UX for Long Reports", () => {
     });
 
     vi.spyOn(pageClassifier, "classifyDocumentPages").mockReturnValue({
+      pages: [],
       pagesToParse: mockPages.slice(13, 25), // 12 pages
       pages_used: [14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26],
       pages_skipped: [
@@ -58,6 +59,7 @@ describe("Phase 6: Upload UX for Long Reports", () => {
       isScanned: false,
       hasResultPages: true,
       isFallbackSummary: false,
+      totalTextLength: 1000,
     });
 
     const mockBiomarkers = [
