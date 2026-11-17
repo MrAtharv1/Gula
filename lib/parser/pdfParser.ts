@@ -1,5 +1,5 @@
 import { ParserOutput, ParsedResultItem } from "./types";
-import { detectReportDate } from "./dateDetector";
+import { detectReportDate, detectReportDateWithWarning } from "./dateDetector";
 import { detectLabName } from "./labDetector";
 import { extractReferenceRange } from "./rangeExtractor";
 import { isNonResultLine } from "./lineCleaner";
@@ -11,6 +11,9 @@ import {
 import { MetricCategory } from "@/lib/db/schema";
 import { ExtractedPage } from "./textExtractor";
 import { classifyDocumentPages, DocumentClassification } from "./pageClassifier";
+import { extractAdaptiveTableRows } from "./layoutAdaptiveExtractor";
+import { parseRowFields } from "./valueRangeParser";
+import { normalizeMetric } from "./nameNormalizer";
 
 const KNOWN_UNITS = [
   "mg/dL",
@@ -60,6 +63,13 @@ export type ParserInput = string | { pages: ExtractedPage[]; fullText?: string }
  * Pure TypeScript deterministic report parser.
  * Never throws an uncaught exception; always returns a typed result.
  */
+function scrubPatientInfo(text: string): string {
+  return text
+    .replace(/(?:patient\s*name)\s*:\s*[^\n\r]+/gi, "Patient NAME : [REDACTED]")
+    .replace(/(?:patient\s*id|uhid)\s*:\s*[^\n\r]+/gi, "Patient ID : [REDACTED]")
+    .replace(/barcode\s*(?:no)?\s*:\s*[^\n\r]+/gi, "Barcode : [REDACTED]");
+}
+
 export function parsePdfText(
   input: ParserInput,
   totalPages = 1
@@ -158,7 +168,7 @@ export function parsePdfText(
       confidence: conf,
       errors,
       warnings: errors,
-      rawText: text,
+      rawText: scrubPatientInfo(text),
       totalPages: docTotalPages,
       pages_used,
       pages_skipped,
@@ -176,12 +186,87 @@ export function parsePdfText(
       return createResult(null, "Unknown lab", [], 0, rawText);
     }
 
-    const reportDate = detectReportDate(rawText);
-    const labName = detectLabName(rawText);
+    const allDocText =
+      typeof input === "object" && input !== null && "pages" in input
+        ? input.fullText || input.pages.map((p) => p.fullText).join("\n")
+        : rawText;
 
-    const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+    const dateDetection = detectReportDateWithWarning(allDocText);
+    const reportDate = dateDetection.reportDate;
+    if (dateDetection.warning) {
+      errors.push(dateDetection.warning);
+    }
+    const labName = detectLabName(allDocText);
+
     const processedMetricKeys = new Set<string>();
     let idCounter = 1;
+
+    // -------------------------------------------------------------
+    // Primary Engine: Layout-Adaptive Extraction (Spatial Geometry)
+    // -------------------------------------------------------------
+    if (classification && classification.pagesToParse.length > 0) {
+      const detailPages = classification.pagesToParse.map((p) => ({
+        pageNumber: p.pageNumber,
+        tokens: p.tokens || [],
+        lines: p.lines,
+      }));
+
+      const tableRows = extractAdaptiveTableRows(detailPages);
+
+      for (const row of tableRows) {
+        const fields = parseRowFields(row.valueCell, row.unitCell, row.rangeCell, row.name);
+        const norm = normalizeMetric(row.name, row.unitCell, row.section, fields.unit || undefined);
+
+        if (processedMetricKeys.has(norm.canonicalKey)) {
+          continue;
+        }
+
+        if (fields.warning) {
+          errors.push(fields.warning);
+        }
+
+        const legacyStatus =
+          fields.flag === "high" ||
+          fields.flag === "low" ||
+          fields.flag === "critical_high" ||
+          fields.flag === "critical_low"
+            ? "abnormal"
+            : fields.flag === "borderline"
+            ? "borderline"
+            : "normal";
+
+        results.push({
+          id: `res-${idCounter++}`,
+          metricKey: norm.canonicalKey,
+          canonicalKey: norm.canonicalKey,
+          name: norm.displayName,
+          displayName: norm.displayName,
+          value: fields.value ?? 0,
+          modifier: fields.modifier,
+          unit: fields.unit || norm.standardUnit,
+          refLow: fields.refLow ?? norm.defaultLow,
+          refHigh: fields.refHigh ?? norm.defaultHigh,
+          rawRange: fields.rawRange,
+          printedFlag: fields.printedFlag,
+          flag: fields.flag === "no_range" ? "normal" : (fields.flag as any),
+          status: legacyStatus,
+          category: norm.category,
+          confidence: norm.isKnown ? 0.95 : 0.8,
+          selected: true,
+          source: rowSource,
+          method: row.method,
+          section: row.section,
+        });
+
+        processedMetricKeys.add(norm.canonicalKey);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Fallback Engine: Line-by-line regex parsing (String-only inputs)
+    // -------------------------------------------------------------
+    if (results.length === 0) {
+      const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -315,6 +400,7 @@ export function parsePdfText(
         skippedLines.push(line);
       }
     }
+  }
 
     if (results.length === 0) {
       errors.push("We couldn't find any test results in this file.");

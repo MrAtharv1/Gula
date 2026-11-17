@@ -25,6 +25,7 @@ export interface ParsedValue {
   isQualitative: boolean;
   printedFlag?: string;
   flagFromValue?: ParsedFlag;
+  embeddedUnit?: string;
 }
 
 export interface ParsedRange {
@@ -120,10 +121,11 @@ export function parseValueCell(rawCell: string, unitHint?: string): ParsedValue 
   }
 
   // 4. Standard numeric values with optional prefix modifier (<, >)
-  const numMatch = cleaned.match(/^([<>]?)\s*(\d+(?:\.\d+)?)/);
+  const numMatch = cleaned.match(/^([<>]?)\s*(\d+(?:\.\d+)?)(?:\s+(.+))?$/);
   if (numMatch) {
     const rawModifier = numMatch[1] === "<" || numMatch[1] === ">" ? (numMatch[1] as "<" | ">") : undefined;
     const num = parseFloat(numMatch[2]);
+    const trailing = numMatch[3]?.trim();
     return {
       value: isNaN(num) ? null : num,
       valueText: numMatch[2],
@@ -131,6 +133,7 @@ export function parseValueCell(rawCell: string, unitHint?: string): ParsedValue 
       isQualitative: false,
       printedFlag,
       flagFromValue,
+      embeddedUnit: trailing,
     };
   }
 
@@ -151,6 +154,14 @@ export function normalizeUnit(rawUnit: string | null | undefined): string | null
   if (!rawUnit) return null;
   const trimmed = rawUnit.trim();
   if (!trimmed || trimmed === "-" || trimmed.toLowerCase() === "nil") {
+    return null;
+  }
+
+  // Reject interpretation text, multi-tier tables, or non-unit strings
+  if (
+    trimmed.length > 25 ||
+    /(?:normal\s*or\s*high|decrease|increase|kidney\s*failure|refer\s*table|below|above|optimal)/i.test(trimmed)
+  ) {
     return null;
   }
 
@@ -369,8 +380,11 @@ export function parseRowFields(
   rangeCell: string,
   testName?: string
 ): ParsedFieldResult {
-  const normUnit = normalizeUnit(unitCell);
+  let normUnit = normalizeUnit(unitCell);
   const parsedVal = parseValueCell(valueCell, normUnit || undefined);
+  if (!normUnit && parsedVal.embeddedUnit) {
+    normUnit = normalizeUnit(parsedVal.embeddedUnit);
+  }
   const parsedRange = parseRangeCell(rangeCell);
   const { flag, warning } = resolveFlag(parsedVal, parsedRange, testName);
 

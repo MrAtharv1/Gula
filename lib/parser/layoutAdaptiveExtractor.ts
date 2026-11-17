@@ -124,12 +124,12 @@ export function extractPageRows(
 
   for (const bucket of lineBuckets) {
     const lineStr = bucket.map((b) => b.str).join(" ");
-    if (
-      /(?:test description|test name|investigation|parameter)/i.test(lineStr) &&
-      /(?:value|result)/i.test(lineStr) &&
-      /unit/i.test(lineStr) &&
-      /(?:reference|range|normal|interval)/i.test(lineStr)
-    ) {
+    const hasNameCol = /(?:test description|test name|investigation|parameter)/i.test(lineStr);
+    const hasValCol = /(?:value|result)/i.test(lineStr);
+    const hasRangeCol = /(?:reference|range|normal|interval)/i.test(lineStr);
+    const hasUnitCol = /unit/i.test(lineStr);
+
+    if (hasNameCol && hasValCol && (hasUnitCol || hasRangeCol)) {
       headerY = bucket[0].y;
       headerBucket = bucket;
       break;

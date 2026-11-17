@@ -24,50 +24,110 @@ const MONTH_MAP: Record<string, string> = {
   december: "12",
 };
 
+export interface DetectedDateResult {
+  reportDate: string | null;
+  warning?: string;
+}
+
 /**
- * Extracts clinical report date from raw report text.
- * Default precedence is Indian Day-First (DD/MM/YYYY) when ambiguous,
- * but correctly handles MM/DD/YYYY when day > 12.
- * Returns ISO 'YYYY-MM-DD' or null if no valid date is found.
+ * Extracts clinical report date from text.
+ * Priority:
+ * 1. "Sample Collected" date (date only, discard time).
+ * 2. "Collection Date", "Date of Collection", "Date Collected", "Specimen Collection Date".
+ * 3. "Report Date", "Reported Date", "Registration Date".
+ * Never uses print date or instrument run date.
+ * If conflicting collection dates appear, keeps the earliest valid collection date and adds a note.
  */
-export function detectReportDate(text: string): string | null {
-  if (!text || text.trim().length === 0) return null;
+export function detectReportDateWithWarning(text: string): DetectedDateResult {
+  if (!text || text.trim().length === 0) {
+    return { reportDate: null };
+  }
 
-  // 1. Look for labeled dates first
-  const labelRegexes = [
-    /(?:collection\s*date|date\s*of\s*collection|date\s*collected|sample\s*date|specimen\s*date|specimen\s*collection\s*date|collected)[:\s]+([A-Za-z0-9\s,\/\-\.]+)/i,
-    /(?:reported\s*date|report\s*date|reported|registered|registration\s*date)[:\s]+([A-Za-z0-9\s,\/\-\.]+)/i,
-    /(?:test\s*date|order\s*date|service\s*date|date)[:\s]+([A-Za-z0-9\s,\/\-\.]+)/i,
-  ];
+  // Lines to strictly exclude (print dates, instrument run dates)
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const filteredLines = lines.filter(
+    (line) => !/(?:printed?\s*(?:date|on|time)|instrument\s*run|run\s*date)/i.test(line)
+  );
+  const cleanText = filteredLines.join("\n");
 
-  for (const regex of labelRegexes) {
-    const match = text.match(regex);
-    if (match && match[1]) {
-      const parsed = parseDateString(match[1]);
-      if (parsed) return parsed;
+  // Priority 1 & 2: Collection dates
+  const foundCollectionDates: string[] = [];
+
+  for (const line of filteredLines) {
+    const m = line.match(
+      /(?:sample\s*collected|specimen\s*collected|collection\s*date|date\s*of\s*collection|date\s*collected|specimen\s*collection\s*date)[:\s]+(.+)/i
+    );
+    if (m && m[1]) {
+      const rawVal = m[1].split(/(?:report\s*date|report\s*status|status|approved|printed)/i)[0].trim();
+      const parsed = parseDateString(rawVal);
+      if (parsed && !foundCollectionDates.includes(parsed)) {
+        foundCollectionDates.push(parsed);
+      }
     }
   }
 
-  // 2. Global search for dates in text
-  // DD Mon YYYY or DD-Mon-YYYY (e.g. 15 Jan 2024, 05-May-2024)
-  const textMonthMatch = text.match(
+  if (foundCollectionDates.length > 0) {
+    // Sort chronologically
+    foundCollectionDates.sort();
+    const earliest = foundCollectionDates[0];
+    let warning: string | undefined;
+    if (foundCollectionDates.length > 1) {
+      warning = `Multiple collection dates detected (${foundCollectionDates.join(", ")}); using earliest: ${earliest}`;
+    }
+    return { reportDate: earliest, warning };
+  }
+
+  // Priority 3: Report Date / Reported Date / Registration Date
+  const foundReportDates: string[] = [];
+  for (const line of filteredLines) {
+    const m = line.match(
+      /(?:report\s*date|reported\s*date|date\s*reported|registration\s*date|registered|test\s*date|order\s*date)[:\s]+(.+)/i
+    );
+    if (m && m[1]) {
+      const rawVal = m[1].split(/(?:report\s*status|status|approved|printed)/i)[0].trim();
+      const parsed = parseDateString(rawVal);
+      if (parsed && !foundReportDates.includes(parsed)) {
+        foundReportDates.push(parsed);
+      }
+    }
+  }
+
+  if (foundReportDates.length > 0) {
+    foundReportDates.sort();
+    return { reportDate: foundReportDates[0] };
+  }
+
+  // Fallback: Global search for dates in cleanText
+  // DD Mon YYYY or DD-Mon-YYYY
+  const textMonthMatch = cleanText.match(
     /\b(0?[1-9]|[12]\d|3[01])[\s\-]*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,\-]+(20[12]\d)\b/i
   );
   if (textMonthMatch) {
     const d = textMonthMatch[1].padStart(2, "0");
     const m = MONTH_MAP[textMonthMatch[2].toLowerCase()] || "01";
     const y = textMonthMatch[3];
-    return `${y}-${m}-${d}`;
+    return { reportDate: `${y}-${m}-${d}` };
+  }
+
+  // Mon DD, YYYY (e.g. Sep 05, 2026)
+  const alphaMatch = cleanText.match(
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(0?[1-9]|[12]\d|3[01]),?\s+(20[12]\d)\b/i
+  );
+  if (alphaMatch) {
+    const m = MONTH_MAP[alphaMatch[1].toLowerCase()] || "01";
+    const d = alphaMatch[2].padStart(2, "0");
+    const y = alphaMatch[3];
+    return { reportDate: `${y}-${m}-${d}` };
   }
 
   // YYYY-MM-DD
-  const isoMatch = text.match(/\b(20[12]\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/);
+  const isoMatch = cleanText.match(/\b(20[12]\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/);
   if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    return { reportDate: `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}` };
   }
 
-  // Two-digit slashes/hyphens: N1/N2/YYYY
-  const slashMatch = text.match(
+  // Two-digit slashes/hyphens: N1/N2/YYYY (Indian/UK day-first)
+  const slashMatch = cleanText.match(
     /\b(0?[1-9]|[12]\d|3[01])[\/\-](0?[1-9]|[12]\d|3[01])[\/\-](20[12]\d)\b/
   );
   if (slashMatch) {
@@ -79,52 +139,31 @@ export function detectReportDate(text: string): string | null {
     if (n1 <= 12 && n2 > 12) {
       const m = String(n1).padStart(2, "0");
       const d = String(n2).padStart(2, "0");
-      return `${y}-${m}-${d}`;
+      return { reportDate: `${y}-${m}-${d}` };
     }
 
-    // Default to Indian day-first DD/MM/YYYY
+    // Default to Indian/UK day-first DD/MM/YYYY
     const d = String(n1).padStart(2, "0");
     const m = String(n2).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    return { reportDate: `${y}-${m}-${d}` };
   }
 
-  // Mon DD, YYYY
-  const alphaMatch = text.match(
-    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(0?[1-9]|[12]\d|3[01]),?\s+(20[12]\d)\b/i
-  );
-  if (alphaMatch) {
-    const m = MONTH_MAP[alphaMatch[1].toLowerCase()] || "01";
-    const d = alphaMatch[2].padStart(2, "0");
-    const y = alphaMatch[3];
-    return `${y}-${m}-${d}`;
-  }
+  return { reportDate: null };
+}
 
-  return null;
+/**
+ * Backward-compatible helper returning string | null
+ */
+export function detectReportDate(text: string): string | null {
+  return detectReportDateWithWarning(text).reportDate;
 }
 
 export function parseDateString(raw: string): string | null {
-  const clean = raw.trim().slice(0, 30);
+  const clean = raw.trim().slice(0, 35);
 
-  // YYYY-MM-DD
-  const iso = clean.match(/^(20[12]\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])/);
-  if (iso) {
-    return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  }
-
-  // DD Mon YYYY
-  const textMonth = clean.match(
-    /^(0?[1-9]|[12]\d|3[01])[\s\-]*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,\-]+(20[12]\d)/i
-  );
-  if (textMonth) {
-    const d = textMonth[1].padStart(2, "0");
-    const m = MONTH_MAP[textMonth[2].toLowerCase()] || "01";
-    const y = textMonth[3];
-    return `${y}-${m}-${d}`;
-  }
-
-  // Mon DD, YYYY
+  // Mon DD, YYYY (e.g. "Sep 05, 2026", "Sep 05, 2026, 08:23 AM")
   const alpha = clean.match(
-    /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(0?[1-9]|[12]\d|3[01]),?\s+(20[12]\d)/i
+    /^(?:[^\w]*)(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(0?[1-9]|[12]\d|3[01]),?\s+(20[12]\d)/i
   );
   if (alpha) {
     const m = MONTH_MAP[alpha[1].toLowerCase()] || "01";
@@ -133,23 +172,38 @@ export function parseDateString(raw: string): string | null {
     return `${y}-${m}-${d}`;
   }
 
-  // Two-digit slashes/hyphens: N1/N2/YYYY
+  // DD Mon YYYY (e.g. "05 Sep 2026", "05-Sep-2026")
+  const textMonth = clean.match(
+    /^(?:[^\w]*)(0?[1-9]|[12]\d|3[01])[\s\-]*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,\-]+(20[12]\d)/i
+  );
+  if (textMonth) {
+    const d = textMonth[1].padStart(2, "0");
+    const m = MONTH_MAP[textMonth[2].toLowerCase()] || "01";
+    const y = textMonth[3];
+    return `${y}-${m}-${d}`;
+  }
+
+  // YYYY-MM-DD
+  const iso = clean.match(/^(?:[^\w]*)(20[12]\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])/);
+  if (iso) {
+    return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  }
+
+  // Two-digit slashes/hyphens: N1/N2/YYYY (Indian/UK DD/MM/YYYY)
   const slash = clean.match(
-    /^(0?[1-9]|[12]\d|3[01])[\/\-](0?[1-9]|[12]\d|3[01])[\/\-](20[12]\d)/
+    /^(?:[^\w]*)(0?[1-9]|[12]\d|3[01])[\/\-](0?[1-9]|[12]\d|3[01])[\/\-](20[12]\d)/
   );
   if (slash) {
     const n1 = parseInt(slash[1], 10);
     const n2 = parseInt(slash[2], 10);
     const y = slash[3];
 
-    // If second number > 12, it must be MM/DD/YYYY
     if (n1 <= 12 && n2 > 12) {
       const m = String(n1).padStart(2, "0");
       const d = String(n2).padStart(2, "0");
       return `${y}-${m}-${d}`;
     }
 
-    // Default to Indian day-first DD/MM/YYYY
     const d = String(n1).padStart(2, "0");
     const m = String(n2).padStart(2, "0");
     return `${y}-${m}-${d}`;
