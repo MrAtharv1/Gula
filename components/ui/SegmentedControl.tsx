@@ -5,6 +5,8 @@ export interface SegmentOption<T extends string = string> {
   value: T;
   label: string;
   icon?: React.ReactNode;
+  disabled?: boolean;
+  title?: string;
 }
 
 interface SegmentedControlProps<T extends string = string> {
@@ -44,11 +46,14 @@ export function SegmentedControl<T extends string = string>({
             role="radio"
             aria-checked={isActive}
             aria-label={opt.label}
-            onClick={() => onChange(opt.value)}
+            disabled={opt.disabled}
+            title={opt.title}
+            onClick={() => !opt.disabled && onChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 font-medium rounded-lg select-none cursor-pointer",
-              "transition-[background-color,border-color,color,box-shadow]",
+              "inline-flex items-center gap-1.5 font-medium rounded-lg select-none",
+              "transition-[background-color,border-color,color,box-shadow,opacity]",
               "duration-[120ms] ease-out",
+              opt.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
               isSm ? "px-2.5 py-1 text-[13px]" : "px-3 py-1.5 text-sm",
               isActive
                 ? [
@@ -59,7 +64,7 @@ export function SegmentedControl<T extends string = string>({
                 : [
                     "border border-transparent",
                     "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    "hover:bg-[var(--bg-card)]/50",
+                    !opt.disabled && "hover:bg-[var(--bg-card)]/50",
                   ]
             )}
           >

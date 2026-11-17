@@ -16,10 +16,25 @@ interface BiomarkerCardProps {
   className?: string;
 }
 
+const SHORT_NAME_MAP: Record<string, string> = {
+  "White Blood Cell Count": "WBC",
+  "Red Blood Cell Count": "RBC",
+  "Platelet Count": "Platelets",
+  "Total Cholesterol": "Total Chol",
+  "LDL Cholesterol": "LDL",
+  "HDL Cholesterol": "HDL",
+  "VLDL Cholesterol": "VLDL",
+  "Non-HDL Cholesterol": "Non-HDL",
+  "Fasting Blood Glucose": "Fasting Glucose",
+  "Random Blood Glucose": "Random Glucose",
+  "Total Cholesterol / HDL Ratio": "TC / HDL",
+};
+
 /** Short display names — abbreviations where the metric dict has long names.
  *  Full name shown in tooltip and on the detail page.
  */
-function getShortName(displayName: string): string {
+export function getShortName(displayName: string): string {
+  if (SHORT_NAME_MAP[displayName]) return SHORT_NAME_MAP[displayName];
   // Strip parenthetical suffixes like "(ALT)" or "(MCV)" since we show the abbreviation
   // Pattern: "Long Name (SHORT)" → "SHORT"
   const match = displayName.match(/\(([^)]{2,8})\)$/);
