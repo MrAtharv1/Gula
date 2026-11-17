@@ -60,7 +60,7 @@ export function BiomarkerCard({
   const shortName = getShortName(displayName);
   const isAbnormal = latestResult.flag !== "normal";
 
-  // Delta row — neutral muted text, never colored red/green
+  // Delta row — neutral muted text, never colored red/green based on direction; colored only if out of range
   const renderDelta = () => {
     if (!previousResult || changeValue === undefined) {
       return (
@@ -88,9 +88,15 @@ export function BiomarkerCard({
       ? formatDate(previousResult.reportDate)
       : "last report";
 
+    const deltaColorClass = isAbnormal
+      ? latestResult.flag === "borderline"
+        ? "text-[var(--status-borderline-text)]"
+        : "text-[var(--status-abnormal-text)]"
+      : "text-[var(--text-muted)]";
+
     return (
-      <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)]">
-        <ArrowIcon className="w-3 h-3 shrink-0 text-[var(--text-muted)]" />
+      <span className={cn("inline-flex items-center gap-1 text-[12px] tabular-nums", deltaColorClass)}>
+        <ArrowIcon className={cn("w-3 h-3 shrink-0", deltaColorClass)} />
         <span>
           {direction} {absChange} since {prevDate}
         </span>
@@ -122,7 +128,7 @@ export function BiomarkerCard({
       title={displayName}
       className={cn(
         "group relative p-4 rounded-xl bg-[var(--bg-card)] border cursor-pointer text-left select-none",
-        "flex flex-col gap-3",
+        "h-full flex flex-col justify-between gap-3",
         "transition-[border-color] duration-[120ms] ease-out",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         isSelected

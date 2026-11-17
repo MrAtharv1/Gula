@@ -7,7 +7,7 @@ export function DashboardSkeleton() {
   return (
     <div className="space-y-6 sm:space-y-8 animate-pulse" aria-busy="true">
       {/* Summary Strip Skeleton */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 p-4 sm:p-5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)]">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 p-4 sm:p-5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]">
         <div>
           <Skeleton className="h-8 w-16 mb-2 rounded-lg" />
           <Skeleton className="h-3 w-20 rounded" />
@@ -25,8 +25,7 @@ export function DashboardSkeleton() {
       {/* Cards Grid Skeleton */}
       <div className="space-y-4">
         <Skeleton className="h-4 w-32 rounded" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-             style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] auto-rows-fr">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}

@@ -5,7 +5,8 @@ import { Report, Result, MetricCategory } from "@/lib/db/schema";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/utils/date";
 import { Badge } from "./ui/Badge";
-import { ArrowUp, ArrowDown, Minus, GitCompare, Search, Filter } from "lucide-react";
+import { getShortName } from "./BiomarkerCard";
+import { ArrowUp, ArrowDown, Minus, GitCompare, Search } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 interface ReportCompareViewProps {
@@ -28,13 +29,13 @@ interface ComparedRow {
 export function ReportCompareView({ reports, className }: ReportCompareViewProps) {
   if (reports.length < 2) {
     return (
-      <div className="p-8 sm:p-12 text-center rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] space-y-2">
+      <div className="p-8 sm:p-12 text-center rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] space-y-2">
         <GitCompare className="w-8 h-8 text-[var(--text-muted)] mx-auto mb-2 opacity-50" />
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+        <h4 className="text-[14px] font-semibold text-[var(--text-primary)]">
           Need at least two reports to compare
         </h4>
-        <p className="text-xs text-[var(--text-secondary)] max-w-sm mx-auto">
-          Upload another health report to see side-by-side metric comparisons and trajectory analysis.
+        <p className="text-[13px] text-[var(--text-muted)] max-w-sm mx-auto">
+          Upload another health report to see side-by-side metric comparisons.
         </p>
       </div>
     );
@@ -169,52 +170,50 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
   return (
     <div
       className={cn(
-        "p-4 sm:p-6 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs space-y-6",
+        "p-4 sm:p-5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] space-y-5",
         className
       )}
     >
       {/* Title & Selectors */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base sm:text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-            Compare Reports
+          <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+            Compare reports
           </h3>
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Select two checkup dates to inspect biometric changes and shifts.
+          <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+            Select two checkup dates to inspect changes.
           </p>
         </div>
 
         {/* Date Selectors */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Report A */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[var(--text-primary)]">Recent:</span>
+            <span className="text-[12px] font-medium text-[var(--text-muted)]">Recent:</span>
             <select
               value={reportIdA}
               onChange={(e) => setReportIdA(Number(e.target.value))}
-              className="px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-primary)] cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[12px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:border-[var(--accent)]"
             >
               {reports.map((r) => (
                 <option key={`a-${r.id}`} value={r.id}>
-                  {formatDate(r.reportDate)} ({r.labName})
+                  {formatDate(r.reportDate)} ({r.labName || "Lab"})
                 </option>
               ))}
             </select>
           </div>
 
-          <span className="text-xs font-bold text-[var(--text-muted)]">vs</span>
+          <span className="text-[12px] text-[var(--text-muted)]">vs</span>
 
-          {/* Report B */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[var(--text-primary)]">Baseline:</span>
+            <span className="text-[12px] font-medium text-[var(--text-muted)]">Baseline:</span>
             <select
               value={reportIdB}
               onChange={(e) => setReportIdB(Number(e.target.value))}
-              className="px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-primary)] cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[12px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:border-[var(--accent)]"
             >
               {reports.map((r) => (
                 <option key={`b-${r.id}`} value={r.id}>
-                  {formatDate(r.reportDate)} ({r.labName})
+                  {formatDate(r.reportDate)} ({r.labName || "Lab"})
                 </option>
               ))}
             </select>
@@ -223,36 +222,36 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
       </div>
 
       {/* Summary Stat Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
         <div>
-          <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-            Compared Tests
+          <span className="text-[12px] text-[var(--text-muted)] block">
+            Compared tests
           </span>
-          <span className="text-lg sm:text-xl font-bold text-[var(--text-primary)] block mt-0.5">
+          <span className="text-[20px] font-semibold text-[var(--text-primary)] block mt-0.5 tabular-nums">
             {summaryStats.comparedCount}
           </span>
         </div>
         <div>
-          <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-            Normalized / Improved
+          <span className="text-[12px] text-[var(--text-muted)] block">
+            Normalized
           </span>
-          <span className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+          <span className="text-[20px] font-semibold text-[var(--status-normal-text)] block mt-0.5 tabular-nums">
             {summaryStats.improved}
           </span>
         </div>
         <div>
-          <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-            Shifted Out of Range
+          <span className="text-[12px] text-[var(--text-muted)] block">
+            Out of range
           </span>
-          <span className="text-lg sm:text-xl font-bold text-rose-600 dark:text-rose-400 block mt-0.5">
+          <span className="text-[20px] font-semibold text-[var(--status-abnormal-text)] block mt-0.5 tabular-nums">
             {summaryStats.worsened}
           </span>
         </div>
         <div>
-          <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
+          <span className="text-[12px] text-[var(--text-muted)] block">
             Stable
           </span>
-          <span className="text-lg sm:text-xl font-bold text-[var(--text-muted)] block mt-0.5">
+          <span className="text-[20px] font-semibold text-[var(--text-muted)] block mt-0.5 tabular-nums">
             {summaryStats.same}
           </span>
         </div>
@@ -267,7 +266,7 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
             placeholder="Search metric..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--accent)]"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)]"
           />
         </div>
 
@@ -277,10 +276,10 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
               key={cat}
               onClick={() => setCategoryFilter(cat)}
               className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer tap-target",
+                "px-2.5 py-1 rounded-lg text-[12px] font-medium transition-[background-color,color] duration-[120ms] shrink-0 cursor-pointer",
                 categoryFilter === cat
-                  ? "bg-[var(--text-primary)] text-[var(--bg-primary)] font-semibold shadow-xs"
-                  : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]"
+                  ? "bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(0,0,0,0.06)] font-semibold"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               )}
             >
               {cat}
@@ -291,9 +290,9 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
 
       {/* Comparison Table */}
       <div className="rounded-xl border border-[var(--border-subtle)] overflow-x-auto bg-[var(--bg-card)]">
-        <table className="w-full text-left text-xs border-collapse">
+        <table className="w-full text-left text-[13px] border-collapse">
           <thead>
-            <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+            <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[12px] font-medium text-[var(--text-muted)]">
               <th className="p-3">Biomarker</th>
               <th className="p-3">
                 {reportB ? formatDate(reportB.reportDate) : "Baseline"}
@@ -308,18 +307,19 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
             {filteredRows.map((row) => {
               const resA = row.resultA;
               const resB = row.resultB;
+              const shortName = getShortName(row.displayName);
 
               return (
                 <tr
                   key={row.metricKey}
-                  className="hover:bg-[var(--bg-secondary)]/50 transition-colors"
+                  className="hover:bg-[var(--bg-card-subtle)]/50 transition-colors"
                 >
-                  {/* Biomarker Name & Category */}
+                  {/* Biomarker Name */}
                   <td className="p-3">
-                    <span className="font-semibold text-[var(--text-primary)] block">
-                      {row.displayName}
+                    <span className="font-medium text-[var(--text-primary)] block">
+                      {shortName}
                     </span>
-                    <span className="text-[10px] text-[var(--text-muted)]">
+                    <span className="text-[11px] text-[var(--text-muted)]">
                       {row.category}
                     </span>
                   </td>
@@ -328,15 +328,17 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                   <td className="p-3">
                     {resB ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[var(--text-primary)]">
+                        <span className="font-medium text-[var(--text-primary)] tabular-nums">
                           {resB.value} {resB.unit}
                         </span>
-                        <Badge variant={resB.flag} size="sm">
-                          {resB.flag}
-                        </Badge>
+                        {resB.flag !== "normal" && (
+                          <Badge variant={resB.flag} size="sm">
+                            {resB.flag}
+                          </Badge>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-[var(--text-muted)] italic">Not tested</span>
+                      <span className="text-[var(--text-muted)] italic text-[12px]">Not tested</span>
                     )}
                   </td>
 
@@ -344,15 +346,17 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                   <td className="p-3">
                     {resA ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[var(--text-primary)]">
+                        <span className="font-medium text-[var(--text-primary)] tabular-nums">
                           {resA.value} {resA.unit}
                         </span>
-                        <Badge variant={resA.flag} size="sm">
-                          {resA.flag}
-                        </Badge>
+                        {resA.flag !== "normal" && (
+                          <Badge variant={resA.flag} size="sm">
+                            {resA.flag}
+                          </Badge>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-[var(--text-muted)] italic">Not tested</span>
+                      <span className="text-[var(--text-muted)] italic text-[12px]">Not tested</span>
                     )}
                   </td>
 
@@ -362,18 +366,18 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                       <div className="inline-flex flex-col items-end">
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1 font-bold",
+                            "inline-flex items-center gap-1 font-medium tabular-nums",
                             row.statusShift === "improved"
-                              ? "text-emerald-600 dark:text-emerald-400"
+                              ? "text-[var(--status-normal-text)]"
                               : row.statusShift === "worsened"
-                              ? "text-rose-600 dark:text-rose-400"
-                              : "text-[var(--text-primary)]"
+                              ? "text-[var(--status-abnormal-text)]"
+                              : "text-[var(--text-muted)]"
                           )}
                         >
                           {row.diff > 0 ? (
-                            <ArrowUp className="w-3 h-3 text-rose-500" />
+                            <ArrowUp className="w-3 h-3 text-[var(--text-muted)]" />
                           ) : row.diff < 0 ? (
-                            <ArrowDown className="w-3 h-3 text-emerald-500" />
+                            <ArrowDown className="w-3 h-3 text-[var(--text-muted)]" />
                           ) : (
                             <Minus className="w-3 h-3 text-[var(--text-muted)]" />
                           )}
@@ -382,7 +386,7 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                           </span>
                         </span>
                         {row.pctChange !== undefined && (
-                          <span className="text-[10px] text-[var(--text-muted)]">
+                          <span className="text-[11px] text-[var(--text-muted)] tabular-nums">
                             {row.pctChange > 0 ? `+${row.pctChange}%` : `${row.pctChange}%`}
                           </span>
                         )}
