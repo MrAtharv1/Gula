@@ -14,6 +14,12 @@ interface RangeBarProps {
   showLabels?: boolean;
 }
 
+/** Slim 4px range bar.
+ *  - Normal range: soft tinted segment.
+ *  - Marker: 8px dot clamped inside the track, colored by status.
+ *  - Labels: 11px muted sans-serif tabular-nums. No "NORMAL" label.
+ *  - One-sided ranges: "Under 149" / "Over 40" — no invented lower bound.
+ */
 export function RangeBar({
   value,
   refLow,
@@ -23,13 +29,13 @@ export function RangeBar({
   className,
   showLabels = true,
 }: RangeBarProps) {
-  // If no reference bounds exist, return simple dashed indicator
+  // No reference bounds at all — show a simple dashed track
   if (refLow === undefined && refHigh === undefined) {
     return (
       <div className={cn("w-full space-y-1", className)}>
-        <div className="w-full h-1.5 rounded-full bg-[var(--border-subtle)]" />
+        <div className="w-full h-1 rounded-full bg-[var(--border-subtle)]" />
         {showLabels && (
-          <div className="flex justify-between text-[10px] text-[var(--text-muted)]">
+          <div className="flex justify-between text-[11px] text-[var(--text-muted)]">
             <span>No reference range</span>
           </div>
         )}
@@ -37,14 +43,16 @@ export function RangeBar({
     );
   }
 
-  // Calculate boundaries and marker position
+  // ── Compute layout ────────────────────────────────────────
   let normalStartPct = 25;
   let normalEndPct = 75;
   let markerPct = 50;
+  let leftLabel = "";
+  let rightLabel = "";
 
   if (refLow !== undefined && refHigh !== undefined) {
+    // Both bounds
     const span = Math.max(refHigh - refLow, 0.001);
-    // Add 30% margin on both sides so out-of-range readings can be visualized
     const margin = span * 0.35;
     const viewMin = refLow - margin;
     const viewMax = refHigh + margin;
@@ -54,67 +62,84 @@ export function RangeBar({
     normalEndPct = ((refHigh - viewMin) / totalViewSpan) * 100;
 
     const rawPos = ((value - viewMin) / totalViewSpan) * 100;
-    markerPct = Math.max(3, Math.min(97, rawPos));
+    markerPct = Math.max(2, Math.min(98, rawPos));
+
+    leftLabel = String(refLow);
+    rightLabel = String(refHigh);
   } else if (refHigh !== undefined && refLow === undefined) {
-    // Upper bound only (e.g. < 200)
+    // Upper bound only — "Under N"
     normalStartPct = 0;
-    normalEndPct = 75;
+    normalEndPct = 72;
     const maxView = refHigh * 1.35;
     const rawPos = (value / Math.max(maxView, 0.001)) * 100;
-    markerPct = Math.max(3, Math.min(97, rawPos));
+    markerPct = Math.max(2, Math.min(98, rawPos));
+
+    leftLabel = "";
+    rightLabel = `Under ${refHigh}${unit ? ` ${unit}` : ""}`;
   } else if (refLow !== undefined && refHigh === undefined) {
-    // Lower bound only (e.g. > 40)
-    normalStartPct = 25;
+    // Lower bound only — "Over N"
+    normalStartPct = 28;
     normalEndPct = 100;
+    // view: from ~50% of refLow to 160%
     const minView = Math.max(0, refLow * 0.5);
     const maxView = refLow * 1.6;
-    const totalViewSpan = maxView - minView;
-    const rawPos = ((value - minView) / Math.max(totalViewSpan, 0.001)) * 100;
-    markerPct = Math.max(3, Math.min(97, rawPos));
+    const totalViewSpan = Math.max(maxView - minView, 0.001);
+    const rawPos = ((value - minView) / totalViewSpan) * 100;
+    markerPct = Math.max(2, Math.min(98, rawPos));
+
+    leftLabel = `Over ${refLow}${unit ? ` ${unit}` : ""}`;
+    rightLabel = "";
   }
 
-  const pinColor =
+  // ── Dot color ─────────────────────────────────────────────
+  const dotStyle =
     flag === "normal"
-      ? "bg-emerald-500 shadow-emerald-500/40"
+      ? "bg-[var(--status-normal-dot)]"
       : flag === "borderline"
-      ? "bg-amber-500 shadow-amber-500/40"
-      : "bg-rose-500 shadow-rose-500/40";
+      ? "bg-[var(--status-borderline-dot)]"
+      : "bg-[var(--status-abnormal-dot)]";
+
+  const bandStyle =
+    flag === "normal"
+      ? "bg-[var(--status-normal-bg)]"
+      : flag === "borderline"
+      ? "bg-[var(--status-borderline-bg)]"
+      : "bg-[var(--status-normal-bg)]"; // band is always normal-tinted
 
   return (
-    <div className={cn("w-full space-y-1.5", className)}>
-      {/* The Range Bar Track */}
-      <div className="relative w-full h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-visible">
-        {/* Normal Zone Highlight */}
+    <div className={cn("w-full", className)}>
+      {/* Track — 4px height */}
+      <div className="relative w-full h-1 rounded-full bg-[var(--bg-card-subtle)]">
+        {/* Normal range tinted band */}
         <div
-          className="absolute top-0 bottom-0 bg-emerald-500/25 dark:bg-emerald-500/20 rounded-full"
+          className={cn("absolute top-0 bottom-0 rounded-full", bandStyle)}
           style={{
             left: `${normalStartPct}%`,
-            width: `${Math.max(2, normalEndPct - normalStartPct)}%`,
+            width: `${Math.max(1, normalEndPct - normalStartPct)}%`,
           }}
         />
-
-        {/* Current Value Marker Pin */}
+        {/* 8px dot marker — clamped inside track */}
         <div
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg-card)] shadow-xs transition-all duration-300",
-            pinColor
+            "absolute top-1/2 -translate-y-1/2 -translate-x-1/2",
+            "w-2 h-2 rounded-full",
+            "ring-[1.5px] ring-[var(--bg-card)]",
+            "transition-[left] duration-[150ms] ease-out",
+            dotStyle
           )}
           style={{ left: `${markerPct}%` }}
-          aria-label={`Value ${value} ${unit} at ${Math.round(markerPct)}% of range`}
+          aria-label={`Value ${value}${unit ? ` ${unit}` : ""}`}
         />
       </div>
 
-      {/* Range Labels */}
-      {showLabels && (
-        <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] font-mono">
-          <span>
-            {refLow !== undefined ? `${refLow}` : "0"}
+      {/* Labels — 11px muted tabular-nums sans-serif, no "NORMAL" */}
+      {showLabels && (refLow !== undefined || refHigh !== undefined) && (
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-[11px] text-[var(--text-muted)] tabular-nums font-normal">
+            {leftLabel}
           </span>
-          <span className="text-[9px] uppercase font-sans tracking-wider text-[var(--text-muted)]/70">
-            Normal
-          </span>
-          <span>
-            {refHigh !== undefined ? `${refHigh}` : "—"}
+          <span className="text-[11px] text-[var(--text-muted)] tabular-nums font-normal">
+            {rightLabel}
           </span>
         </div>
       )}

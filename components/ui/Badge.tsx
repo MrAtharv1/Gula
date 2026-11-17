@@ -15,6 +15,10 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   showDot?: boolean;
 }
 
+/** Status badge. Normal shows NO badge at all — call site decides.
+ *  Uses new status color tokens. Dot: 6px circle.
+ *  Sentence case labels expected from the caller.
+ */
 export function Badge({
   className,
   variant = "neutral",
@@ -26,7 +30,7 @@ export function Badge({
   const baseStyles =
     "inline-flex items-center font-medium rounded-full border transition-colors select-none";
 
-  const variants = {
+  const variants: Record<BadgeVariant, string> = {
     normal:
       "bg-[var(--status-normal-bg)] text-[var(--status-normal-text)] border-[var(--status-normal-border)]",
     borderline:
@@ -38,21 +42,21 @@ export function Badge({
     high:
       "bg-[var(--status-abnormal-bg)] text-[var(--status-abnormal-text)] border-[var(--status-abnormal-border)]",
     neutral:
-      "bg-[var(--bg-card-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]",
+      "bg-[var(--bg-card-subtle)] text-[var(--text-muted)] border-[var(--border-subtle)]",
   };
 
-  const dotColors = {
-    normal: "bg-emerald-500",
-    borderline: "bg-amber-500",
-    abnormal: "bg-rose-500",
-    low: "bg-rose-500",
-    high: "bg-rose-500",
+  const dotColors: Record<BadgeVariant, string> = {
+    normal: "bg-[var(--status-normal-dot)]",
+    borderline: "bg-[var(--status-borderline-dot)]",
+    abnormal: "bg-[var(--status-abnormal-dot)]",
+    low: "bg-[var(--status-abnormal-dot)]",
+    high: "bg-[var(--status-abnormal-dot)]",
     neutral: "bg-[var(--text-muted)]",
   };
 
   const sizes = {
-    sm: "text-[11px] px-2 py-0.5 gap-1",
-    md: "text-xs px-2.5 py-1 gap-1.5",
+    sm: "text-[11px] px-1.5 py-0.5 gap-1",
+    md: "text-[12px] px-2 py-0.5 gap-1",
   };
 
   return (

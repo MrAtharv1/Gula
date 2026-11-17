@@ -7,12 +7,25 @@ import { Sparkline } from "./ui/Sparkline";
 import { RangeBar } from "./ui/RangeBar";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 
 interface BiomarkerCardProps {
   summary: LatestResultSummary;
   isSelected?: boolean;
   onClick: () => void;
   className?: string;
+}
+
+/** Short display names — abbreviations where the metric dict has long names.
+ *  Full name shown in tooltip and on the detail page.
+ */
+function getShortName(displayName: string): string {
+  // Strip parenthetical suffixes like "(ALT)" or "(MCV)" since we show the abbreviation
+  // Pattern: "Long Name (SHORT)" → "SHORT"
+  const match = displayName.match(/\(([^)]{2,8})\)$/);
+  if (match) return match[1];
+  // Already short (≤12 chars) or no parens
+  return displayName;
 }
 
 export function BiomarkerCard({
@@ -26,46 +39,51 @@ export function BiomarkerCard({
     previousResult,
     changeValue,
     displayName,
-    category,
     sparklineValues = [],
   } = summary;
 
-  // Format change arrow and text
-  const renderChange = () => {
+  const shortName = getShortName(displayName);
+  const isAbnormal = latestResult.flag !== "normal";
+
+  // Delta row — neutral muted text, never colored red/green
+  const renderDelta = () => {
     if (!previousResult || changeValue === undefined) {
       return (
-        <span className="text-[11px] text-[var(--text-muted)]">
+        <span className="text-[12px] text-[var(--text-muted)]">
           First record
         </span>
       );
     }
 
-    if (changeValue > 0) {
+    if (changeValue === 0) {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)]">
-          <ArrowUp className="w-3 h-3 text-rose-500 shrink-0" />
-          <span>up {Math.abs(changeValue)}</span>
+        <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)]">
+          <Minus className="w-3 h-3 shrink-0" />
+          <span>No change</span>
         </span>
       );
     }
 
-    if (changeValue < 0) {
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)]">
-          <ArrowDown className="w-3 h-3 text-emerald-500 shrink-0" />
-          <span>down {Math.abs(changeValue)}</span>
-        </span>
-      );
-    }
+    const absChange = Math.abs(changeValue);
+    const direction = changeValue > 0 ? "up" : "down";
+    const ArrowIcon = changeValue > 0 ? ArrowUp : ArrowDown;
+
+    // Date from previous result if available
+    const prevDate = previousResult.reportDate
+      ? formatDate(previousResult.reportDate)
+      : "last report";
 
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
-        <Minus className="w-3 h-3 shrink-0" />
-        <span>no change</span>
+      <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)]">
+        <ArrowIcon className="w-3 h-3 shrink-0 text-[var(--text-muted)]" />
+        <span>
+          {direction} {absChange} since {prevDate}
+        </span>
       </span>
     );
   };
 
+  // Status label — sentence case
   const statusLabel =
     latestResult.flag === "high"
       ? "High"
@@ -86,70 +104,64 @@ export function BiomarkerCard({
           onClick();
         }
       }}
+      title={displayName}
       className={cn(
-        "group relative p-4 rounded-2xl bg-[var(--bg-card)] border transition-all duration-150 cursor-pointer text-left select-none tap-target flex flex-col justify-between space-y-3",
+        "group relative p-4 rounded-xl bg-[var(--bg-card)] border cursor-pointer text-left select-none",
+        "flex flex-col gap-3",
+        "transition-[border-color] duration-[120ms] ease-out",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         isSelected
-          ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/30 shadow-xs"
-          : "border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:shadow-xs",
+          ? "border-[var(--accent)]"
+          : "border-[var(--border-subtle)] hover:border-[var(--border-hover)]",
         className
       )}
       aria-label={`${displayName}, ${latestResult.value} ${latestResult.unit}, ${statusLabel}`}
     >
-      {/* Header: Name and Status Badge */}
+      {/* Row 1: Short name + status badge (only if abnormal or borderline) */}
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-semibold tracking-tight text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors truncate">
-            {displayName}
-          </h4>
-        </div>
-        <Badge variant={latestResult.flag} size="sm" showDot>
-          {statusLabel}
-        </Badge>
+        <span className="text-[14px] font-medium text-[var(--text-primary)] leading-tight">
+          {shortName}
+        </span>
+        {isAbnormal && (
+          <Badge variant={latestResult.flag} size="sm" showDot>
+            {statusLabel}
+          </Badge>
+        )}
       </div>
 
-      {/* Main Metric Value and Sparkline */}
-      <div className="flex items-end justify-between gap-3">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+      {/* Row 2: Value + unit + sparkline */}
+      <div className="flex items-end justify-between gap-2">
+        <div className="flex items-baseline gap-1 tabular-nums">
+          <span className="text-[28px] font-semibold leading-none tracking-[-0.01em] text-[var(--text-primary)] tabular-nums">
             {latestResult.value}
           </span>
-          <span className="text-xs font-medium text-[var(--text-muted)]">
+          <span className="text-[13px] text-[var(--text-muted)] font-normal ml-0.5">
             {latestResult.unit}
           </span>
         </div>
 
-        {/* Tiny Sparkline */}
-        <div className="pb-1">
-          <Sparkline
-            values={sparklineValues.length > 0 ? sparklineValues : [latestResult.value]}
-            flag={latestResult.flag}
-            width={64}
-            height={22}
-          />
-        </div>
-      </div>
-
-      {/* Change Indicator vs Previous Report */}
-      <div className="flex items-center justify-between text-xs">
-        {renderChange()}
-        {previousResult && (
-          <span className="text-[10px] text-[var(--text-muted)]">
-            vs prev
-          </span>
-        )}
-      </div>
-
-      {/* Slim Reference Range Bar */}
-      <div className="pt-1">
-        <RangeBar
-          value={latestResult.value}
-          refLow={latestResult.refLow}
-          refHigh={latestResult.refHigh}
+        <Sparkline
+          values={sparklineValues.length > 0 ? sparklineValues : [latestResult.value]}
           flag={latestResult.flag}
-          unit={latestResult.unit}
-          showLabels
+          width={64}
+          height={24}
         />
       </div>
+
+      {/* Row 3: Delta — neutral muted text */}
+      <div className="flex items-center">
+        {renderDelta()}
+      </div>
+
+      {/* Row 4: 4px range bar */}
+      <RangeBar
+        value={latestResult.value}
+        refLow={latestResult.refLow}
+        refHigh={latestResult.refHigh}
+        flag={latestResult.flag}
+        unit={latestResult.unit}
+        showLabels
+      />
     </div>
   );
 }

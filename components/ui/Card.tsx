@@ -1,6 +1,9 @@
 import React from "react";
 import { cn } from "@/lib/utils/cn";
 
+/** Surface card: 12px radius, 1px border, no shadow.
+ *  Hover: border darkens slightly via border-[var(--border-hover)] — no lift or scale.
+ */
 export function Card({
   className,
   children,
@@ -9,7 +12,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs transition-colors",
+        "rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]",
+        "transition-[border-color] duration-[120ms] ease-out",
         className
       )}
       {...props}
@@ -25,10 +29,7 @@ export function CardHeader({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn("p-5 flex flex-col space-y-1.5", className)}
-      {...props}
-    >
+    <div className={cn("p-4 sm:p-5 flex flex-col space-y-1", className)} {...props}>
       {children}
     </div>
   );
@@ -42,7 +43,7 @@ export function CardTitle({
   return (
     <h3
       className={cn(
-        "text-base font-semibold tracking-tight text-[var(--text-primary)]",
+        "text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]",
         className
       )}
       {...props}
@@ -59,7 +60,7 @@ export function CardDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={cn("text-xs text-[var(--text-secondary)] leading-relaxed", className)}
+      className={cn("text-[13px] text-[var(--text-muted)] leading-relaxed", className)}
       {...props}
     >
       {children}
@@ -73,7 +74,7 @@ export function CardContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("p-5 pt-0", className)} {...props}>
+    <div className={cn("p-4 sm:p-5 pt-0", className)} {...props}>
       {children}
     </div>
   );
@@ -87,7 +88,7 @@ export function CardFooter({
   return (
     <div
       className={cn(
-        "p-5 pt-0 border-t border-[var(--border-subtle)] flex items-center justify-between",
+        "p-4 sm:p-5 pt-0 border-t border-[var(--border-subtle)] flex items-center justify-between",
         className
       )}
       {...props}

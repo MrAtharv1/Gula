@@ -305,7 +305,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
     <div className="space-y-8 max-w-3xl pb-12">
       {/* ================= GROUP 1: APPEARANCE ================= */}
       <section className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
           Appearance
         </h3>
         <Card className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -349,7 +349,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
               Account & Cloud Sync
             </h3>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
@@ -485,11 +485,10 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
                 </div>
 
                 <Button
-                  variant="secondary"
+                  variant="danger"
                   size="sm"
-                  icon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+                  icon={<Trash2 className="w-3.5 h-3.5" />}
                   onClick={() => setIsDeleteAccountModalOpen(true)}
-                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 border-rose-500/30"
                 >
                   Delete account
                 </Button>
@@ -502,7 +501,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
       {/* ================= GROUP 3: UPLOADED REPORTS & UNDO ================= */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
             Uploaded reports ({activeReports.length})
           </h3>
 
@@ -653,7 +652,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
 
       {/* ================= GROUP 4: UNITS PREFERENCE ================= */}
       <section className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
           Units preference
         </h3>
         <Card className="p-4 sm:p-5 space-y-4">
@@ -721,7 +720,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
 
       {/* ================= GROUP 5: DATA & BACKUP ================= */}
       <section className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
           Data
         </h3>
         <Card className="p-4 sm:p-5 space-y-4">
@@ -770,11 +769,10 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
             </div>
 
             <Button
-              variant="secondary"
+              variant="danger"
               size="sm"
-              icon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+              icon={<Trash2 className="w-3.5 h-3.5" />}
               onClick={() => setIsDeleteAllConfirmOpen(true)}
-              className="text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 border-rose-500/30"
             >
               Delete all data
             </Button>

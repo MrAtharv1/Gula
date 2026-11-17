@@ -12,10 +12,15 @@ interface SparklineProps {
   className?: string;
 }
 
+/** Tiny sparkline: ~64×24px, 1.5px stroke, NO fill, NO axes.
+ *  Muted color (--text-muted) by default; status color only if abnormal/borderline.
+ *  Small dot on the latest data point.
+ *  Handles 1 and many data points gracefully.
+ */
 export function Sparkline({
   values = [],
   flag = "normal",
-  width = 72,
+  width = 64,
   height = 24,
   className,
 }: SparklineProps) {
@@ -23,29 +28,18 @@ export function Sparkline({
     return null;
   }
 
-  // Color mapping based on flag
-  const strokeColor =
-    flag === "normal"
-      ? "stroke-emerald-500"
-      : flag === "borderline"
-      ? "stroke-amber-500"
-      : "stroke-rose-500";
+  // Color: muted for normal, status color otherwise
+  const isAbnormal = flag !== "normal";
+  const strokeVar =
+    flag === "borderline"
+      ? "var(--status-borderline-dot)"
+      : flag === "normal"
+      ? "var(--text-muted)"
+      : "var(--status-abnormal-dot)"; // high / low / abnormal
 
-  const fillColor =
-    flag === "normal"
-      ? "fill-emerald-500/15"
-      : flag === "borderline"
-      ? "fill-amber-500/15"
-      : "fill-rose-500/15";
+  const dotVar = strokeVar;
 
-  const dotColor =
-    flag === "normal"
-      ? "fill-emerald-500"
-      : flag === "borderline"
-      ? "fill-amber-500"
-      : "fill-rose-500";
-
-  // If only 1 data point, show a single crisp dot
+  // Single point — dashed baseline with a centered dot
   if (values.length === 1) {
     return (
       <svg
@@ -60,27 +54,26 @@ export function Sparkline({
           y1={height / 2}
           x2={width - 2}
           y2={height / 2}
-          stroke="currentColor"
+          stroke="var(--border-subtle)"
           strokeWidth="1"
-          strokeDasharray="2 2"
-          className="text-[var(--border-subtle)]"
+          strokeDasharray="2 3"
         />
-        <circle cx={width / 2} cy={height / 2} r="2.5" className={dotColor} />
+        <circle cx={width / 2} cy={height / 2} r="2" fill={dotVar} />
       </svg>
     );
   }
 
-  const padding = 3;
-  const usableWidth = width - padding * 2;
-  const usableHeight = height - padding * 2;
+  const pad = 2;
+  const usableW = width - pad * 2;
+  const usableH = height - pad * 2;
 
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min === 0 ? 1 : max - min;
 
   const points = values.map((val, idx) => {
-    const x = padding + (idx / (values.length - 1)) * usableWidth;
-    const y = padding + usableHeight - ((val - min) / range) * usableHeight;
+    const x = pad + (idx / (values.length - 1)) * usableW;
+    const y = pad + usableH - ((val - min) / range) * usableH;
     return { x, y };
   });
 
@@ -91,9 +84,6 @@ export function Sparkline({
 
   const lastPoint = points[points.length - 1];
 
-  // Closed area for subtle gradient under sparkline
-  const areaD = `${pathD} L ${points[points.length - 1].x},${height} L ${points[0].x},${height} Z`;
-
   return (
     <svg
       width={width}
@@ -102,20 +92,23 @@ export function Sparkline({
       className={cn("overflow-visible shrink-0", className)}
       aria-hidden="true"
     >
-      <path d={areaD} className={fillColor} />
+      {/* No fill — line only */}
       <path
         d={pathD}
         fill="none"
-        strokeWidth="1.5"
+        stroke={strokeVar}
+        strokeWidth={isAbnormal ? "1.5" : "1.25"}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={strokeColor}
+        opacity={isAbnormal ? 1 : 0.7}
       />
+      {/* Dot on latest point */}
       <circle
         cx={lastPoint.x}
         cy={lastPoint.y}
         r="2"
-        className={dotColor}
+        fill={dotVar}
+        opacity={isAbnormal ? 1 : 0.8}
       />
     </svg>
   );

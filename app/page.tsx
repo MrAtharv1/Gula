@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   getActiveReports,
@@ -21,10 +21,12 @@ import { ToastContainer } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncMergeModal } from "@/components/SyncMergeModal";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { PageContainer } from "@/components/ui/PageContainer";
 import { initSyncEngine, syncAll } from "@/lib/sync/syncEngine";
 import { toast } from "@/lib/store/toastStore";
 import { formatDate } from "@/lib/utils/date";
-import { Plus, FilePlus, Layers, GitCompare, LineChart as ChartIcon } from "lucide-react";
+import { Plus, Upload, FilePlus, Layers, GitCompare, LineChart as ChartIcon, CheckCircle2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 // Lazy-load heavy chart and modal components for performance and mobile Lighthouse optimization
@@ -220,115 +222,217 @@ export default function GulaApp() {
 
   const latestReportDate = reports.length > 0 ? reports[0].reportDate : null;
 
+  // ── Add report dropdown state ──────────────────────────────
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addMenuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setAddMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // ── Sticky header scroll-border ────────────────────────────
+  const [scrolled, setScrolled] = useState(false);
+  const mainRef = React.useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const handler = () => setScrolled(el.scrollTop > 2);
+    el.addEventListener("scroll", handler, { passive: true });
+    return () => el.removeEventListener("scroll", handler);
+  }, []);
+
+  // ── Trends sub-mode segmented options ──────────────────────
+  const trendsOptions = [
+    { value: "overlay" as TrendsSubMode, label: "Overlay", icon: <Layers className="w-3.5 h-3.5" /> },
+    { value: "compare" as TrendsSubMode, label: "Compare", icon: <GitCompare className="w-3.5 h-3.5" /> },
+    { value: "single" as TrendsSubMode, label: "Single metric", icon: <ChartIcon className="w-3.5 h-3.5" /> },
+  ];
+
   return (
     <div className="flex h-screen bg-[var(--bg-secondary)] overflow-hidden">
-      {/* Toast Notification Container */}
+      {/* Toast */}
       <ToastContainer />
 
-      {/* Desktop Slim Sidebar & Mobile Bottom Tab Bar */}
+      {/* Sidebar + mobile bottom tab bar */}
       <Navbar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onOpenUpload={() => setIsUploadOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-24 md:pb-10">
-        {/* Top Header Bar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 py-4 bg-[var(--bg-primary)]/80 backdrop-blur-md border-b border-[var(--border-subtle)]">
-          <div>
-            <h1 className="text-base sm:text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-              {activeTab === "home" && "Your health"}
-              {activeTab === "trends" && "Biomarker Trends"}
-              {activeTab === "settings" && "Settings"}
-            </h1>
-            <p className="text-[11px] sm:text-xs text-[var(--text-muted)]">
-              {activeTab === "home" && (
-                latestReportDate
-                  ? `Report from ${formatDate(latestReportDate)}`
-                  : "No reports recorded"
-              )}
-              {activeTab === "trends" && (
-                `${summaries.length} tracked biomarkers across ${reports.length} reports`
-              )}
-              {activeTab === "settings" && (
-                "Data management and preferences"
-              )}
-            </p>
-          </div>
+      {/* Main scroll area */}
+      <main ref={mainRef} className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-20 md:pb-8">
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<FilePlus className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-              onClick={() => setIsManualOpen(true)}
-              className="hidden sm:inline-flex"
-            >
-              Manual entry
-            </Button>
+        {/* ── Sticky top header ──────────────────────────────── */}
+        <header
+          className={cn(
+            "sticky top-0 z-30",
+            "bg-[var(--bg-primary)]/90 backdrop-blur-md",
+            "transition-[border-color] duration-[150ms] ease-out",
+            scrolled
+              ? "border-b border-[var(--border-subtle)]"
+              : "border-b border-transparent"
+          )}
+        >
+          <PageContainer className="flex items-center justify-between py-3 gap-4">
+            {/* Title */}
+            <div className="min-w-0">
+              <h1 className="text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] leading-tight">
+                {activeTab === "home" && "Your health"}
+                {activeTab === "trends" && "Trends"}
+                {activeTab === "settings" && "Settings"}
+              </h1>
+              <p className="text-[12px] text-[var(--text-muted)] leading-snug mt-0.5">
+                {activeTab === "home" && (
+                  latestReportDate
+                    ? `Last report ${formatDate(latestReportDate)}`
+                    : "No reports yet"
+                )}
+                {activeTab === "trends" && (
+                  `${summaries.length} biomarkers · ${reports.length} ${reports.length === 1 ? "report" : "reports"}`
+                )}
+                {activeTab === "settings" && "Data and preferences"}
+              </p>
+            </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => setIsUploadOpen(true)}
-            >
-              Add report
-            </Button>
-          </div>
+            {/* ONE primary action: "Add report" with dropdown */}
+            {activeTab !== "settings" && (
+              <div ref={addMenuRef} className="relative shrink-0">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setAddMenuOpen((o) => !o)}
+                  className="gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add report</span>
+                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-[120ms]", addMenuOpen && "rotate-180")} />
+                </Button>
+
+                {/* Dropdown menu */}
+                {addMenuOpen && (
+                  <div
+                    className={cn(
+                      "absolute right-0 top-full mt-1.5 z-50",
+                      "min-w-[164px] rounded-xl",
+                      "bg-[var(--bg-card)] border border-[var(--border-subtle)]",
+                      "shadow-[0_4px_16px_rgba(0,0,0,0.12)]",
+                      "overflow-hidden",
+                    )}
+                  >
+                    <button
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3.5 py-2.5",
+                        "text-[14px] text-[var(--text-primary)] font-medium",
+                        "hover:bg-[var(--bg-card-subtle)] transition-colors duration-[100ms]",
+                        "cursor-pointer select-none text-left",
+                      )}
+                      onClick={() => { setAddMenuOpen(false); setIsUploadOpen(true); }}
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                      Upload PDF
+                    </button>
+                    <div className="border-t border-[var(--border-subtle)]" />
+                    <button
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3.5 py-2.5",
+                        "text-[14px] text-[var(--text-primary)] font-medium",
+                        "hover:bg-[var(--bg-card-subtle)] transition-colors duration-[100ms]",
+                        "cursor-pointer select-none text-left",
+                      )}
+                      onClick={() => { setAddMenuOpen(false); setIsManualOpen(true); }}
+                    >
+                      <FilePlus className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                      Enter manually
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </PageContainer>
         </header>
 
-        {/* Content Body */}
-        <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6 sm:space-y-8">
-          {/* ================= TAB 1: HOME DASHBOARD ================= */}
+        {/* ── Page content ───────────────────────────────────── */}
+        <PageContainer className="py-6 space-y-8">
+
+          {/* ═════ TAB 1: HOME ═════ */}
           {activeTab === "home" && (
             <ErrorBoundary fallbackTitle="Couldn't load dashboard">
               {isLoading && summaries.length === 0 ? (
                 <DashboardSkeleton />
               ) : summaries.length > 0 ? (
                 <>
-                  {/* Summary Strip: Total tests, In range, Needs attention */}
-                  <div className="grid grid-cols-3 gap-2 sm:gap-4 p-4 sm:p-5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-2xs">
-                    <div>
-                      <span className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)] block">
+                  {/* Summary strip — 3 neutral stats */}
+                  <div className="grid grid-cols-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] overflow-hidden">
+                    {/* Total tests */}
+                    <div className="flex flex-col px-4 sm:px-6 py-4 gap-1">
+                      <span className="text-[28px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                         {stats.total}
                       </span>
-                      <span className="text-[10px] sm:text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block mt-0.5">
+                      <span className="text-[12px] text-[var(--text-muted)] leading-tight">
                         Total tests
                       </span>
                     </div>
-                    <div className="border-l border-[var(--border-subtle)] pl-3 sm:pl-5">
-                      <span className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block">
+
+                    {/* In range */}
+                    <div className="flex flex-col px-4 sm:px-6 py-4 gap-1 border-l border-[var(--border-subtle)]">
+                      <span className="text-[28px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                         {stats.inRange}
                       </span>
-                      <span className="text-[10px] sm:text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block mt-0.5">
+                      <span className="text-[12px] text-[var(--text-muted)] leading-tight">
                         In range
                       </span>
                     </div>
-                    <div className="border-l border-[var(--border-subtle)] pl-3 sm:pl-5">
-                      <span className="text-2xl sm:text-3xl font-bold tracking-tight text-rose-600 dark:text-rose-400 block">
-                        {stats.needsAttention}
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block mt-0.5">
-                        Needs attention
-                      </span>
+
+                    {/* Needs attention — neutral at 0, amber/red when > 0 */}
+                    <div className="flex flex-col px-4 sm:px-6 py-4 gap-1 border-l border-[var(--border-subtle)]">
+                      {stats.needsAttention === 0 ? (
+                        <>
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-[var(--status-normal-dot)] shrink-0" />
+                            <span className="text-[14px] font-semibold text-[var(--text-primary)]">All good</span>
+                          </span>
+                          <span className="text-[12px] text-[var(--text-muted)] leading-tight">
+                            All in range
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            className="text-[28px] font-semibold leading-none tabular-nums"
+                            style={{ color: stats.needsAttention > 2 ? "var(--status-abnormal-text)" : "var(--status-borderline-text)" }}
+                          >
+                            {stats.needsAttention}
+                          </span>
+                          <span className="text-[12px] text-[var(--text-muted)] leading-tight">
+                            Needs attention
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {/* "Needs attention" Section First: out-of-range metrics only */}
+                  {/* Needs attention section — only shown when > 0 */}
                   {needsAttentionSummaries.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+                        <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
                           Needs attention
                         </h2>
-                        <Badge variant="abnormal" size="sm">
+                        <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
                           {needsAttentionSummaries.length}
-                        </Badge>
+                        </span>
                       </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                           style={{ gridAutoRows: "1fr" }}>
                         {needsAttentionSummaries.map((summary) => (
                           <BiomarkerCard
                             key={`attention-${summary.metricKey}`}
@@ -340,20 +444,20 @@ export default function GulaApp() {
                     </section>
                   )}
 
-                  {/* Category Sections: Blood, Lipids, Sugar, Thyroid, Liver, Kidney, Vitamins... */}
-                  <div className="space-y-6 sm:space-y-8">
+                  {/* Category sections */}
+                  <div className="space-y-8">
                     {categoryGroups.map(({ category, items }) => (
                       <section key={category} className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+                          <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
                             {category}
                           </h3>
-                          <span className="text-xs text-[var(--text-muted)]">
-                            ({items.length})
+                          <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                            {items.length}
                           </span>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                             style={{ gridAutoRows: "1fr" }}>
                           {items.map((summary) => (
                             <BiomarkerCard
                               key={summary.metricKey}
@@ -367,10 +471,10 @@ export default function GulaApp() {
                   </div>
                 </>
               ) : (
-                /* Empty state: a calm illustration-free screen */
+                /* Calm empty state */
                 <EmptyState
                   title="No reports yet"
-                  description="Upload your test report PDF to see your health dashboard. All data is processed and stored locally on your device."
+                  description="Upload a lab report PDF to start tracking your health."
                   actionLabel="Upload report"
                   onAction={() => setIsUploadOpen(true)}
                   secondaryActionLabel="Try demo data"
@@ -385,152 +489,118 @@ export default function GulaApp() {
             </ErrorBoundary>
           )}
 
-          {/* ================= TAB 2: BIOMARKER TRENDS ================= */}
+          {/* ═════ TAB 2: TRENDS ═════ */}
           {activeTab === "trends" && (
             <ErrorBoundary fallbackTitle="Couldn't load trends view">
               <div className="space-y-6">
-              {summaries.length > 0 ? (
-                <>
-                  {/* Sub-Mode Segmented Control: Overlay | Compare | Single Metric */}
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-1 p-1 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs">
-                      <button
-                        onClick={() => setTrendsMode("overlay")}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer tap-target select-none",
-                          trendsMode === "overlay"
-                            ? "bg-[var(--accent)] text-white shadow-xs font-semibold"
-                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        )}
-                      >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Overlay (Up to 4)</span>
-                      </button>
-
-                      <button
-                        onClick={() => setTrendsMode("compare")}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer tap-target select-none",
-                          trendsMode === "compare"
-                            ? "bg-[var(--accent)] text-white shadow-xs font-semibold"
-                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        )}
-                      >
-                        <GitCompare className="w-3.5 h-3.5" />
-                        <span>Compare 2 Reports</span>
-                      </button>
-
-                      <button
-                        onClick={() => setTrendsMode("single")}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer tap-target select-none",
-                          trendsMode === "single"
-                            ? "bg-[var(--accent)] text-white shadow-xs font-semibold"
-                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        )}
-                      >
-                        <ChartIcon className="w-3.5 h-3.5" />
-                        <span>Single Metric</span>
-                      </button>
+                {summaries.length > 0 ? (
+                  <>
+                    {/* Shared segmented control — Overlay / Compare / Single */}
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <SegmentedControl
+                        options={trendsOptions}
+                        value={trendsMode}
+                        onChange={setTrendsMode}
+                      />
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        {reports.length} {reports.length === 1 ? "report" : "reports"} on file
+                      </span>
                     </div>
 
-                    <span className="text-xs text-[var(--text-muted)]">
-                      {reports.length} {reports.length === 1 ? "report" : "reports"} on file
-                    </span>
-                  </div>
+                    {trendsMode === "overlay" && (
+                      <MultiMetricTrendChart
+                        summaries={summaries}
+                        allHistory={allHistoryMap}
+                      />
+                    )}
 
-                  {/* Mode 1: Multi-Metric Overlay (Up to 4 metrics) */}
-                  {trendsMode === "overlay" && (
-                    <MultiMetricTrendChart
-                      summaries={summaries}
-                      allHistory={allHistoryMap}
-                    />
-                  )}
+                    {trendsMode === "compare" && (
+                      <ReportCompareView reports={reports} />
+                    )}
 
-                  {/* Mode 2: Compare 2 Reports Side by Side */}
-                  {trendsMode === "compare" && (
-                    <ReportCompareView reports={reports} />
-                  )}
+                    {trendsMode === "single" && (
+                      <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]">
+                          <label className="text-[13px] font-medium text-[var(--text-muted)]">
+                            Metric
+                          </label>
+                          <select
+                            value={selectedKey}
+                            onChange={async (e) => {
+                              const key = e.target.value;
+                              setSelectedKey(key);
+                              const history = await getHistory(key);
+                              setSelectedHistory(history);
+                            }}
+                            className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[13px] font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer transition-[border-color] duration-[120ms]"
+                          >
+                            {summaries.map((s) => (
+                              <option key={s.metricKey} value={s.metricKey}>
+                                {s.displayName} ({s.category})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-                  {/* Mode 3: Single Metric Explorer with Large Chart */}
-                  {trendsMode === "single" && (
-                    <div className="space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)]">
-                        <label className="text-xs font-semibold text-[var(--text-secondary)]">
-                          Select Biomarker:
-                        </label>
-                        <select
-                          value={selectedKey}
-                          onChange={async (e) => {
-                            const key = e.target.value;
-                            setSelectedKey(key);
-                            const history = await getHistory(key);
-                            setSelectedHistory(history);
-                          }}
-                          className="px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-primary)] focus:outline-hidden cursor-pointer"
-                        >
-                          {summaries.map((s) => (
-                            <option key={s.metricKey} value={s.metricKey}>
-                              {s.displayName} ({s.category})
-                            </option>
-                          ))}
-                        </select>
+                        {(() => {
+                          const currentSummary = summaries.find((s) => s.metricKey === selectedKey);
+                          const currentDef = METRIC_DICTIONARY[selectedKey];
+                          return (
+                            <BiomarkerTrendChart
+                              history={selectedHistory}
+                              biomarkerName={currentSummary?.displayName || currentDef?.displayName || selectedKey}
+                              unit={currentSummary?.latestResult.unit || currentDef?.standardUnit || ""}
+                              refLow={currentSummary?.latestResult.refLow ?? currentDef?.defaultLow}
+                              refHigh={currentSummary?.latestResult.refHigh ?? currentDef?.defaultHigh}
+                              description={currentDef?.description}
+                            />
+                          );
+                        })()}
                       </div>
+                    )}
 
-                      {(() => {
-                        const currentSummary = summaries.find((s) => s.metricKey === selectedKey);
-                        const currentDef = METRIC_DICTIONARY[selectedKey];
-                        return (
-                          <BiomarkerTrendChart
-                            history={selectedHistory}
-                            biomarkerName={currentSummary?.displayName || currentDef?.displayName || selectedKey}
-                            unit={currentSummary?.latestResult.unit || currentDef?.standardUnit || ""}
-                            refLow={currentSummary?.latestResult.refLow ?? currentDef?.defaultLow}
-                            refHigh={currentSummary?.latestResult.refHigh ?? currentDef?.defaultHigh}
-                            description={currentDef?.description}
+                    {/* All tracked biomarkers */}
+                    <div className="pt-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                          All metrics
+                        </h3>
+                        <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                          {summaries.length}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {summaries.map((s) => (
+                          <BiomarkerCard
+                            key={s.metricKey}
+                            summary={s}
+                            isSelected={s.metricKey === selectedKey}
+                            onClick={() => handleOpenDetail(s)}
                           />
-                        );
-                      })()}
+                        ))}
+                      </div>
                     </div>
-                  )}
-
-                  {/* All Tracked Biomarkers Grid */}
-                  <div className="pt-2">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">
-                      All Tracked Biomarkers ({summaries.length})
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                      {summaries.map((s) => (
-                        <BiomarkerCard
-                          key={s.metricKey}
-                          summary={s}
-                          isSelected={s.metricKey === selectedKey}
-                          onClick={() => handleOpenDetail(s)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <EmptyState
-                  title="No biomarkers to display"
-                  description="Upload a report or load demo checkup data to view interactive trend lines."
-                  actionLabel="Upload report"
-                  onAction={() => setIsUploadOpen(true)}
-                  secondaryActionLabel="Try demo data"
-                  secondaryActionType="link"
-                  onSecondaryAction={async () => {
-                    await loadDemoData();
-                    await loadData();
-                    toast("Loaded demo checkup reports", "success");
-                  }}
-                />
-              )}
-            </div>
+                  </>
+                ) : (
+                  <EmptyState
+                    title="No data yet"
+                    description="Upload a report to view trends."
+                    actionLabel="Upload report"
+                    onAction={() => setIsUploadOpen(true)}
+                    secondaryActionLabel="Try demo data"
+                    secondaryActionType="link"
+                    onSecondaryAction={async () => {
+                      await loadDemoData();
+                      await loadData();
+                      toast("Loaded demo checkup reports", "success");
+                    }}
+                  />
+                )}
+              </div>
             </ErrorBoundary>
           )}
 
-          {/* ================= TAB 3: SETTINGS ================= */}
+          {/* ═════ TAB 3: SETTINGS ═════ */}
           {activeTab === "settings" && (
             <SettingsView
               onDataChanged={() => {
@@ -539,10 +609,10 @@ export default function GulaApp() {
               }}
             />
           )}
-        </div>
+        </PageContainer>
       </main>
 
-      {/* Metric Detail Modal / Sheet */}
+      {/* Modals */}
       <MetricDetailModal
         summary={detailSummary}
         history={detailHistory}
@@ -550,7 +620,6 @@ export default function GulaApp() {
         onClose={() => setIsDetailOpen(false)}
       />
 
-      {/* Upload Modal (instant refresh on success, then background sync) */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
@@ -561,19 +630,17 @@ export default function GulaApp() {
         }}
       />
 
-      {/* Manual Entry Modal */}
       <ManualEntryModal
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
         onSuccess={() => {
           loadData();
           setActiveTab("home");
-          toast("Entry saved successfully", "success");
+          toast("Entry saved", "success");
           syncAll().catch((err) => console.error("Post-entry sync error:", err));
         }}
       />
 
-      {/* First Sign-In Merge Confirmation Modal */}
       <SyncMergeModal onComplete={() => loadData()} />
     </div>
   );
