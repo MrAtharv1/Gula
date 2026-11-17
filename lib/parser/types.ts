@@ -18,6 +18,9 @@ export interface ParsedResultItem {
   category: MetricCategory;
   confidence: number; // 0.0 to 1.0
   selected: boolean;
+  source?: "detail" | "summary";
+  method?: string;
+  section?: string;
 }
 
 export interface ParserOutput {
@@ -33,6 +36,8 @@ export interface ParserOutput {
   warnings?: string[]; // compatibility alias for errors
   rawText: string;
   totalPages: number;
+  pages_used?: number[];
+  pages_skipped?: { pageNumber: number; reason: string }[];
 }
 
 // Backward-compatible alias for existing UI components

@@ -9,6 +9,8 @@ import {
   evaluateResultFlag,
 } from "@/lib/db/metricDictionary";
 import { MetricCategory } from "@/lib/db/schema";
+import { ExtractedPage } from "./textExtractor";
+import { classifyDocumentPages, DocumentClassification } from "./pageClassifier";
 
 const KNOWN_UNITS = [
   "mg/dL",
@@ -52,14 +54,87 @@ export interface UnifiedParserResult extends ParserOutput {
   warnings: string[];
 }
 
+export type ParserInput = string | { pages: ExtractedPage[]; fullText?: string };
+
 /**
  * Pure TypeScript deterministic report parser.
  * Never throws an uncaught exception; always returns a typed result.
  */
-export function parsePdfText(rawText: string, totalPages = 1): UnifiedParserResult {
+export function parsePdfText(
+  input: ParserInput,
+  totalPages = 1
+): UnifiedParserResult {
   const errors: string[] = [];
   const skippedLines: string[] = [];
   const results: ParsedResultItem[] = [];
+
+  let pages_used: number[] = [];
+  let pages_skipped: { pageNumber: number; reason: string }[] = [];
+  let rowSource: "detail" | "summary" = "detail";
+
+  let rawText = "";
+  let docTotalPages = totalPages;
+  let classification: DocumentClassification | null = null;
+
+  if (typeof input === "object" && input !== null && "pages" in input) {
+    classification = classifyDocumentPages(input.pages);
+    docTotalPages = input.pages.length;
+    pages_used = classification.pages_used;
+    pages_skipped = classification.pages_skipped;
+
+    // Check for scanned copy across whole document (never page 1 alone)
+    if (classification.isScanned) {
+      errors.push("This looks like a scanned copy. We can't read it yet. Try the original PDF from the lab.");
+      return {
+        title: "Lab Test Report",
+        date: "",
+        reportDate: null,
+        labName: "Unknown lab",
+        results: [],
+        biomarkers: [],
+        skippedLines: [],
+        confidence: 0,
+        errors,
+        warnings: errors,
+        rawText: "",
+        totalPages: docTotalPages,
+        pages_used: [],
+        pages_skipped,
+      };
+    }
+
+    // Check if zero result pages found
+    if (!classification.hasResultPages) {
+      errors.push("We couldn't find a results table in this file.");
+      return {
+        title: "Lab Test Report",
+        date: "",
+        reportDate: null,
+        labName: "Unknown lab",
+        results: [],
+        biomarkers: [],
+        skippedLines: [],
+        confidence: 0,
+        errors,
+        warnings: errors,
+        rawText: input.fullText || "",
+        totalPages: docTotalPages,
+        pages_used: [],
+        pages_skipped,
+      };
+    }
+
+    if (classification.isFallbackSummary) {
+      rowSource = "summary";
+      errors.push("Ranges may be simplified.");
+    }
+
+    // Parse ONLY the selected result pages
+    rawText = classification.pagesToParse.map((p) => p.fullText).join("\n\n");
+  } else {
+    rawText = typeof input === "string" ? input : "";
+    pages_used = [1];
+  }
 
   const createResult = (
     reportDate: string | null,
@@ -84,7 +159,9 @@ export function parsePdfText(rawText: string, totalPages = 1): UnifiedParserResu
       errors,
       warnings: errors,
       rawText: text,
-      totalPages,
+      totalPages: docTotalPages,
+      pages_used,
+      pages_skipped,
     };
   };
 
@@ -174,6 +251,7 @@ export function parsePdfText(rawText: string, totalPages = 1): UnifiedParserResu
             category: def.category,
             confidence: tokenData.hasExplicitRange ? 0.95 : 0.85,
             selected: true,
+            source: rowSource,
           });
 
           processedMetricKeys.add(def.canonicalKey);
@@ -219,6 +297,7 @@ export function parsePdfText(rawText: string, totalPages = 1): UnifiedParserResu
             category: finalCategory,
             confidence: dictMatch ? 0.8 : 0.6,
             selected: true,
+            source: rowSource,
           });
 
           processedMetricKeys.add(finalKey);

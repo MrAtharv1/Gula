@@ -155,21 +155,14 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
       // 1. Text extraction via PDF.js
       const extracted = await extractPdfText(fileBuffer);
 
-      // Validation: No selectable text (scanned image)
-      if (!extracted.fullText || extracted.fullText.trim().length < 15) {
-        setErrorMessage(
-          "This looks like a scanned copy. We can't read it yet. Try the original PDF from the lab."
-        );
-        setStep("preview");
-        return;
-      }
+      // 2. Rule-based layout-adaptive parsing with page classification
+      const parsed = parseReportText(extracted, extracted.pages.length);
 
-      // 2. Rule-based parsing
-      const parsed = parseReportText(extracted.fullText, extracted.pages.length);
-
-      // Validation: Text found but no tests recognized
+      // Validation: Scanned copy, no result tables, or empty document
       if (!parsed.biomarkers || parsed.biomarkers.length === 0) {
-        setErrorMessage("We couldn't find any test results in this file.");
+        setErrorMessage(
+          parsed.errors[0] || "We couldn't find a results table in this file."
+        );
         setStep("preview");
         return;
       }
