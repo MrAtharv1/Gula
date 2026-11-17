@@ -14,6 +14,7 @@ import {
 import { LatestResultSummary, ResultWithDate } from "@/lib/db/schema";
 import { formatDate } from "@/lib/utils/date";
 import { Badge } from "./ui/Badge";
+import { SegmentedControl } from "./ui/SegmentedControl";
 import { X, Plus, Layers } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -167,35 +168,26 @@ export function MultiMetricTrendChart({
         {/* Normalized Scale Toggle and Time Filter */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Scale mode toggle */}
-          <button
-            onClick={() => setIsNormalized(!isNormalized)}
-            className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer tap-target select-none",
-              isNormalized
-                ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
-                : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            )}
-          >
-            {isNormalized ? "Normalized (0–100%)" : "Standard units"}
-          </button>
+          <SegmentedControl
+            options={[
+              { value: "relative", label: "Relative" },
+              { value: "actual", label: "Actual values" },
+            ]}
+            value={isNormalized ? "relative" : "actual"}
+            onChange={(v) => setIsNormalized(v === "relative")}
+          />
 
           {/* Time filter buttons */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-            {(["3m", "6m", "1y", "all"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setTimeFilter(r)}
-                className={cn(
-                  "px-2 py-1 rounded-lg text-xs font-medium transition-all tap-target cursor-pointer",
-                  timeFilter === r
-                    ? "bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-xs"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                )}
-              >
-                {r.toUpperCase()}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={[
+              { value: "3m", label: "3M" },
+              { value: "6m", label: "6M" },
+              { value: "1y", label: "1Y" },
+              { value: "all", label: "All" },
+            ]}
+            value={timeFilter}
+            onChange={(v) => setTimeFilter(v as "3m" | "6m" | "1y" | "all")}
+          />
         </div>
       </div>
 

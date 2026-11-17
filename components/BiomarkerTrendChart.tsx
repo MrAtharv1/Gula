@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { ResultWithDate } from "@/lib/db/schema";
 import { Badge } from "./ui/Badge";
+import { SegmentedControl } from "./ui/SegmentedControl";
 import {
   calculateTrendInsight,
   calculateHistoricalMinMax,
@@ -181,29 +182,17 @@ export function BiomarkerTrendChart({
         </div>
 
         {/* Time Filters: 3M, 6M, 1Y, All */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] self-start sm:self-auto">
-          {(
-            [
-              { id: "3m", label: "3M" },
-              { id: "6m", label: "6M" },
-              { id: "1y", label: "1Y" },
-              { id: "all", label: "All" },
-            ] as const
-          ).map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setTimeFilter(id)}
-              className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-medium transition-all tap-target cursor-pointer",
-                timeFilter === id
-                  ? "bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-xs"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          options={[
+            { value: "3m" as TimeFilter, label: "3M" },
+            { value: "6m" as TimeFilter, label: "6M" },
+            { value: "1y" as TimeFilter, label: "1Y" },
+            { value: "all" as TimeFilter, label: "All" },
+          ]}
+          value={timeFilter}
+          onChange={setTimeFilter}
+          className="self-start sm:self-auto"
+        />
       </div>
 
       {/* Recharts Large Line Chart */}

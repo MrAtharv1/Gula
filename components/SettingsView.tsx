@@ -43,19 +43,13 @@ import {
   Eye,
   Calendar,
   Layers,
-  Sun,
-  Moon,
-  Monitor,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
   Mail,
   LogOut,
   Loader2,
-  Cloud,
-  ShieldCheck,
 } from "lucide-react";
-import { useThemeStore } from "@/lib/store/themeStore";
 import { cn } from "@/lib/utils/cn";
 
 interface SettingsViewProps {
@@ -63,7 +57,6 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onDataChanged }: SettingsViewProps) {
-  const { theme, setTheme } = useThemeStore();
   const {
     glucoseUnit,
     cholesterolUnit,
@@ -318,30 +311,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] self-start sm:self-auto">
-            {(
-              [
-                { id: "light", label: "Light", icon: Sun },
-                { id: "dark", label: "Dark", icon: Moon },
-                { id: "system", label: "System", icon: Monitor },
-              ] as const
-            ).map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setTheme(id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all tap-target cursor-pointer",
-                  theme === id
-                    ? "bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-xs"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                )}
-                aria-label={`${label} theme`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
+          <ThemeToggle className="self-start sm:self-auto" />
         </Card>
       </section>
 
