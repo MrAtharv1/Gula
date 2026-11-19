@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
+import path from "path";
 
 export async function GET() {
-  const samplePath = "C:\\Users\\intel\\Downloads\\Praveen_Chauhan-1.pdf";
+  const userProfile = process.env.USERPROFILE || "C:\\Users\\intel";
+  const samplePath = path.join(userProfile, "Downloads", "Praveen_Chauhan-1.pdf");
   if (!fs.existsSync(samplePath)) {
     return new NextResponse("Sample file not found", { status: 404 });
   }
