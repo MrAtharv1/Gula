@@ -47,18 +47,25 @@ export function deriveColumnBoundaries(
   headerTokens: PositionedToken[],
   pageWidth = 595
 ): ColumnBoundaries {
-  let nameXEnd = pageWidth * 0.35;
-  let valueXEnd = pageWidth * 0.52;
-  let unitXEnd = pageWidth * 0.68;
+  let nameHeader: PositionedToken | null = null;
+  let valueHeader: PositionedToken | null = null;
+  let unitHeader: PositionedToken | null = null;
+  let rangeHeader: PositionedToken | null = null;
 
-  const sorted = [...headerTokens].sort((a, b) => a.x - b.x);
-
-  for (let i = 0; i < sorted.length; i++) {
-    const s = sorted[i].str.toLowerCase();
-    if (s.includes("value") || s.includes("result")) {
-      nameXEnd = sorted[i].x - 5;
+  for (const t of headerTokens) {
+    const s = t.str.toLowerCase();
+    if (
+      s.includes("test") ||
+      s.includes("investigation") ||
+      s.includes("parameter") ||
+      s.includes("analyte") ||
+      s.includes("description")
+    ) {
+      if (!nameHeader || t.x < nameHeader.x) nameHeader = t;
+    } else if (s.includes("value") || s.includes("result")) {
+      if (!valueHeader) valueHeader = t;
     } else if (s.includes("unit")) {
-      valueXEnd = sorted[i].x - 5;
+      if (!unitHeader) unitHeader = t;
     } else if (
       s.includes("reference") ||
       s.includes("range") ||
@@ -66,13 +73,36 @@ export function deriveColumnBoundaries(
       s.includes("normal") ||
       s.includes("bio")
     ) {
-      unitXEnd = sorted[i].x - 5;
+      if (!rangeHeader) rangeHeader = t;
     }
   }
 
+  // Derive boundaries as midpoints between adjacent headers
+  let nameXEnd = pageWidth * 0.35;
+  let valueXEnd = pageWidth * 0.52;
+  let unitXEnd = pageWidth * 0.68;
+
+  if (nameHeader && valueHeader) {
+    nameXEnd = (nameHeader.x + valueHeader.x) / 2;
+  } else if (valueHeader) {
+    nameXEnd = valueHeader.x - 15;
+  }
+
+  if (valueHeader && unitHeader) {
+    valueXEnd = (valueHeader.x + unitHeader.x) / 2;
+  } else if (unitHeader) {
+    valueXEnd = unitHeader.x - 20;
+  }
+
+  if (unitHeader && rangeHeader) {
+    unitXEnd = (unitHeader.x + rangeHeader.x) / 2;
+  } else if (rangeHeader) {
+    unitXEnd = rangeHeader.x - 20;
+  }
+
   // Safety clamps to ensure valid column intervals
-  if (valueXEnd <= nameXEnd) valueXEnd = nameXEnd + 60;
-  if (unitXEnd <= valueXEnd) unitXEnd = valueXEnd + 60;
+  if (valueXEnd <= nameXEnd) valueXEnd = nameXEnd + 50;
+  if (unitXEnd <= valueXEnd) unitXEnd = valueXEnd + 50;
 
   return { nameXEnd, valueXEnd, unitXEnd };
 }
@@ -187,8 +217,8 @@ export function extractPageRows(
     const unitCell = unitTokens.join(" ").trim();
     const rangeCell = rangeTokens.join(" ").trim();
 
-    // Line is an anchor if valueCell is populated
-    if (valueCell.length > 0) {
+    // Line is an anchor if valueCell is populated AND nameCell is populated
+    if (valueCell.length > 0 && nameCell.length > 0) {
       if (currentRow) {
         pageRows.push(currentRow);
       }
@@ -201,6 +231,19 @@ export function extractPageRows(
         rangeCell,
         section: currentSection || undefined,
       };
+    } else if (
+      nameCell.length === 0 &&
+      valueCell.length > 0 &&
+      unitCell.length === 0 &&
+      rangeCell.length === 0 &&
+      !/\d/.test(valueCell)
+    ) {
+      // Centered banner or package title (e.g., "Smart Full Body Checkup")
+      if (currentRow) {
+        pageRows.push(currentRow);
+        currentRow = null;
+      }
+      currentSection = valueCell;
     } else if (nameCell.length > 0) {
       // No value on this line
       const isSectionHeading =
@@ -336,3 +379,5 @@ export function extractAdaptiveTableRows(
 
   return deduplicatePageBreakRows(allRows);
 }
+
+export const extractRowsFromDetailPages = extractAdaptiveTableRows;

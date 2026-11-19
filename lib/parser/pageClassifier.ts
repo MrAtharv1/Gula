@@ -146,9 +146,9 @@ export function classifyPage(page: ExtractedPage): PageClassificationResult {
       return false;
     }
 
-    // 4-column row: Name + Value (number + flag) + Unit + Range
+    // 4-column row: Name + Value (number/text + flag) + Unit + Range
     const has4Col =
-      /^([A-Za-z0-9\s,\-\/\(\)\.]+?)\s{2,}([<>]?\s*\d+(?:\.\d+)?)\s*([LH]\*|[LH]|CL\*|CH\*)?\s{2,}([A-Za-z%µ\/\^0-9]+)\s{2,}([<>]?\s*[\d\.\-\s–—to><]+.*)$/i.test(
+      /^([A-Za-z0-9\s,\-\/\(\)\.]+?)\s{2,}([<>]?\s*\d+(?:\.\d+)?|Nil|Negative|Positive|Absent|Present|Normal|Trace|Reactive|Non-Reactive)(?:\s*(?:[LH]\*|[LH]|CL\*|CH\*))?\s{2,}([A-Za-z%µ\/\^0-9\-\–\—\.]+|–|-|—)\s{2,}(.+)$/i.test(
         trimmed
       );
 

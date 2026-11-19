@@ -29,8 +29,10 @@ export interface DetectedDateResult {
   warning?: string;
 }
 
+export type DateInput = string | Array<{ fullText?: string } | string> | { fullText?: string };
+
 /**
- * Extracts clinical report date from text.
+ * Extracts clinical report date from text or extracted pages.
  * Priority:
  * 1. "Sample Collected" date (date only, discard time).
  * 2. "Collection Date", "Date of Collection", "Date Collected", "Specimen Collection Date".
@@ -38,7 +40,16 @@ export interface DetectedDateResult {
  * Never uses print date or instrument run date.
  * If conflicting collection dates appear, keeps the earliest valid collection date and adds a note.
  */
-export function detectReportDateWithWarning(text: string): DetectedDateResult {
+export function detectReportDateWithWarning(input: DateInput): DetectedDateResult {
+  let text = "";
+  if (Array.isArray(input)) {
+    text = input.map((item) => (typeof item === "string" ? item : item.fullText || "")).join("\n");
+  } else if (typeof input === "string") {
+    text = input;
+  } else if (input && typeof (input as any).fullText === "string") {
+    text = (input as any).fullText;
+  }
+
   if (!text || text.trim().length === 0) {
     return { reportDate: null };
   }
@@ -154,8 +165,8 @@ export function detectReportDateWithWarning(text: string): DetectedDateResult {
 /**
  * Backward-compatible helper returning string | null
  */
-export function detectReportDate(text: string): string | null {
-  return detectReportDateWithWarning(text).reportDate;
+export function detectReportDate(input: DateInput): string | null {
+  return detectReportDateWithWarning(input).reportDate;
 }
 
 export function parseDateString(raw: string): string | null {
