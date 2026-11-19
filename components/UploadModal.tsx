@@ -57,7 +57,6 @@ const CLINICAL_CATEGORIES: MetricCategory[] = [
 export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const [step, setStep] = useState<UploadStep>("pick");
   const [file, setFile] = useState<File | null>(null);
-  const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -89,7 +88,6 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const resetAll = () => {
     setStep("pick");
     setFile(null);
-    setFileBuffer(null);
     if (fileUrl) {
       try {
         URL.revokeObjectURL(fileUrl);
@@ -149,10 +147,8 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
         } catch {}
       }
       const url = URL.createObjectURL(selectedFile);
-      const buffer = await selectedFile.arrayBuffer();
       setFile(selectedFile);
       setFileUrl(url);
-      setFileBuffer(buffer);
       setStep("preview");
     } catch (err) {
       console.error(err);
@@ -432,7 +428,6 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
                 <PdfPreview
                   url={fileUrl || undefined}
                   file={file || undefined}
-                  data={fileBuffer || undefined}
                   password={password}
                   onPasswordRequired={() => setIsPasswordProtected(true)}
                 />
