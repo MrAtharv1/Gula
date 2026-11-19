@@ -92,8 +92,9 @@ export default function ParserDebugPage() {
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
       }
 
+      const bufferCopy = buffer.slice(0);
       const pdf = await pdfjsLib.getDocument({
-        data: buffer,
+        data: bufferCopy,
         useSystemFonts: true,
       }).promise;
 

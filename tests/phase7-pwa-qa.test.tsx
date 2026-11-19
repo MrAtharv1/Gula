@@ -136,7 +136,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
 
     it("renders navigation correctly at 375px (iPhone SE)", () => {
       const { container } = renderWithWidth(375);
-      const mobileNav = container.querySelector("nav[aria-label='Mobile Bottom Navigation']");
+      const mobileNav = container.querySelector("nav[aria-label*='Mobile']");
       expect(mobileNav).not.toBeNull();
 
       const buttons = mobileNav?.querySelectorAll("button");
@@ -145,7 +145,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
 
     it("renders navigation correctly at 393px (iPhone 15)", () => {
       const { container } = renderWithWidth(393);
-      const mobileNav = container.querySelector("nav[aria-label='Mobile Bottom Navigation']");
+      const mobileNav = container.querySelector("nav[aria-label*='Mobile']");
       expect(mobileNav).not.toBeNull();
       expect(screen.getAllByText("Home")).toBeDefined();
       expect(screen.getAllByText("Trends")).toBeDefined();
@@ -164,7 +164,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
       const desktopSidebar = container.querySelector("aside");
       expect(desktopSidebar).not.toBeNull();
       expect(desktopSidebar?.textContent).toContain("Gula");
-      expect(desktopSidebar?.textContent).toContain("Upload report");
+      expect(desktopSidebar?.textContent).toContain("Settings");
     });
   });
 

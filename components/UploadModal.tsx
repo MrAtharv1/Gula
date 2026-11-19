@@ -129,9 +129,9 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
       return;
     }
 
-    const MAX_SIZE = 25 * 1024 * 1024;
+    const MAX_SIZE = 20 * 1024 * 1024;
     if (selectedFile.size > MAX_SIZE) {
-      setErrorMessage("File is too large. Max 25 MB.");
+      setErrorMessage("File is too large. Max 20 MB.");
       return;
     }
 
@@ -170,7 +170,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
 
   // STEP 2 & 3: Submit & Layout-Adaptive Parse with Progress Tracking
   const handleSubmit = async () => {
-    if (!file || !fileBuffer) return;
+    if (!file) return;
 
     setStep("submitting");
     setErrorMessage(null);
@@ -178,8 +178,22 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     setProgressMessage("Classifying pages...");
 
     try {
+      // Ensure we have a valid non-detached ArrayBuffer to process
+      let bufferToProcess: ArrayBuffer;
+      const isDetached =
+        !fileBuffer ||
+        (fileBuffer as any).detached ||
+        fileBuffer.byteLength === 0;
+
+      if (!isDetached && fileBuffer) {
+        bufferToProcess = fileBuffer.slice(0);
+      } else {
+        bufferToProcess = await file.arrayBuffer();
+        setFileBuffer(bufferToProcess.slice(0));
+      }
+
       // 1. Extract text and spatial token items
-      const extracted = await extractPdfText(fileBuffer);
+      const extracted = await extractPdfText(bufferToProcess);
 
       // 2. Score and classify pages
       const classification = classifyDocumentPages(extracted.pages);

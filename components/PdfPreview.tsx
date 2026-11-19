@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 
 interface PdfPreviewProps {
-  data: ArrayBuffer;
+  data: ArrayBuffer | Uint8Array;
   password?: string;
   onPasswordRequired?: () => void;
   onPageCount?: (count: number) => void;
@@ -27,10 +27,25 @@ export function PdfPreview({
 
   useEffect(() => {
     let isCancelled = false;
+    let loadingTask: any = null;
 
     async function loadPdf() {
       setIsLoading(true);
       setRenderError(null);
+
+      // Verify that data is available and not detached
+      if (
+        !data ||
+        (data as any).detached ||
+        (data instanceof Uint8Array && (data.buffer as any).detached) ||
+        data.byteLength === 0
+      ) {
+        if (!isCancelled) {
+          setRenderError("Couldn't render page preview: document buffer is unavailable.");
+          setIsLoading(false);
+        }
+        return;
+      }
 
       try {
         const pdfjsLib = await import("pdfjs-dist");
@@ -38,8 +53,13 @@ export function PdfPreview({
           pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         }
 
-        const loadingTask = pdfjsLib.getDocument({
-          data,
+        // CRITICAL: Clone the buffer before passing to getDocument!
+        // When using a Web Worker, pdfjs transfers the underlying ArrayBuffer,
+        // which detaches it. Passing a sliced copy keeps the parent data intact.
+        const bufferCopy = data instanceof Uint8Array ? data.slice() : data.slice(0);
+
+        loadingTask = pdfjsLib.getDocument({
+          data: bufferCopy,
           password: password || undefined,
           useSystemFonts: true,
         });
@@ -52,7 +72,10 @@ export function PdfPreview({
         };
 
         const doc = await loadingTask.promise;
-        if (isCancelled) return;
+        if (isCancelled) {
+          doc.destroy?.();
+          return;
+        }
 
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
@@ -78,6 +101,9 @@ export function PdfPreview({
 
     return () => {
       isCancelled = true;
+      if (loadingTask && typeof loadingTask.destroy === "function") {
+        loadingTask.destroy().catch(() => {});
+      }
     };
   }, [data, password, onPasswordRequired, onPageCount]);
 

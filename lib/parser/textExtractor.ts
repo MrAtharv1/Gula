@@ -19,6 +19,19 @@ export interface ExtractedPage {
 }
 
 export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ pages: ExtractedPage[]; fullText: string }> {
+  // Validate data is not detached or empty
+  if (
+    !data ||
+    (data as any).detached ||
+    (data instanceof Uint8Array && (data.buffer as any).detached) ||
+    data.byteLength === 0
+  ) {
+    throw new Error("Cannot extract text: document buffer is detached or empty.");
+  }
+
+  // Clone buffer so PDF.js Web Worker does not detach the original data
+  const bufferCopy = data instanceof Uint8Array ? data.slice() : data.slice(0);
+
   // Dynamically import pdfjs-dist so it only loads on the client
   const pdfjsLib = await import("pdfjs-dist");
 
@@ -28,7 +41,7 @@ export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ 
   }
 
   const loadingTask = pdfjsLib.getDocument({
-    data,
+    data: bufferCopy,
     useSystemFonts: true,
   });
 
