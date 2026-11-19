@@ -3,6 +3,13 @@
  * Groups spatial text items by Y coordinate to preserve tabular rows.
  */
 
+// Polyfill Promise.try for environments lacking ES2024 Promise.try support
+if (typeof (Promise as any).try !== "function") {
+  (Promise as any).try = function (fn: () => any) {
+    return new Promise((resolve) => resolve(fn()));
+  };
+}
+
 export interface PositionedToken {
   str: string;
   x: number;
@@ -21,64 +28,46 @@ export interface ExtractedPage {
 export async function extractPdfText(
   input: ArrayBuffer | Uint8Array | Blob | string
 ): Promise<{ pages: ExtractedPage[]; fullText: string }> {
-  // Dynamically import pdfjs-dist so it only loads on the client
-  const pdfjsLib = await import("pdfjs-dist");
+  // Use legacy build for maximum environment compatibility
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
   // Configure worker for client-side processing
   if (typeof window !== "undefined" && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   }
 
-  let loadingTask: any;
-  let tempBlobUrl: string | null = null;
+  let binaryData: Uint8Array | null = null;
+  let documentUrl: string | null = null;
 
   if (typeof input === "string") {
+    documentUrl = input;
+  } else if (typeof Blob !== "undefined" && input instanceof Blob) {
+    const arrayBuffer = await input.arrayBuffer();
+    binaryData = new Uint8Array(arrayBuffer).slice();
+  } else if (input instanceof Uint8Array) {
+    binaryData = input.slice();
+  } else if (input instanceof ArrayBuffer) {
+    binaryData = new Uint8Array(input).slice();
+  }
+
+  let loadingTask: any;
+
+  if (documentUrl) {
     loadingTask = pdfjsLib.getDocument({
-      url: input,
+      url: documentUrl,
       useSystemFonts: true,
     });
-  } else if (typeof Blob !== "undefined" && input instanceof Blob) {
-    tempBlobUrl = URL.createObjectURL(input);
+  } else if (binaryData && binaryData.byteLength > 0) {
     loadingTask = pdfjsLib.getDocument({
-      url: tempBlobUrl,
+      data: binaryData,
       useSystemFonts: true,
     });
   } else {
-    // ArrayBuffer or Uint8Array
-    const rawBuffer = input as ArrayBuffer | Uint8Array;
-    if (
-      !rawBuffer ||
-      (rawBuffer as any).detached ||
-      (rawBuffer instanceof Uint8Array && (rawBuffer.buffer as any).detached) ||
-      rawBuffer.byteLength === 0
-    ) {
-      throw new Error("Cannot extract text: document buffer is detached or empty.");
-    }
-
-    if (
-      typeof Blob !== "undefined" &&
-      typeof URL !== "undefined" &&
-      typeof URL.createObjectURL === "function"
-    ) {
-      const blob = new Blob([rawBuffer as any], { type: "application/pdf" });
-      tempBlobUrl = URL.createObjectURL(blob);
-      loadingTask = pdfjsLib.getDocument({
-        url: tempBlobUrl,
-        useSystemFonts: true,
-      });
-    } else {
-      const bufferCopy =
-        rawBuffer instanceof Uint8Array ? rawBuffer.slice() : rawBuffer.slice(0);
-      loadingTask = pdfjsLib.getDocument({
-        data: bufferCopy,
-        useSystemFonts: true,
-      });
-    }
+    throw new Error("Cannot extract text: document buffer is invalid or empty.");
   }
 
-  try {
-    const pdf = await loadingTask.promise;
-    const pages: ExtractedPage[] = [];
+  const pdf = await loadingTask.promise;
+  const pages: ExtractedPage[] = [];
     const fullTextParts: string[] = [];
 
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -162,11 +151,4 @@ export async function extractPdfText(
     pages,
     fullText: fullTextParts.join("\n\n"),
   };
-  } finally {
-    if (tempBlobUrl) {
-      try {
-        URL.revokeObjectURL(tempBlobUrl);
-      } catch {}
-    }
-  }
 }

@@ -57,7 +57,6 @@ const CLINICAL_CATEGORIES: MetricCategory[] = [
 export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const [step, setStep] = useState<UploadStep>("pick");
   const [file, setFile] = useState<File | null>(null);
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Progress state during long report extraction
@@ -88,12 +87,6 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const resetAll = () => {
     setStep("pick");
     setFile(null);
-    if (fileUrl) {
-      try {
-        URL.revokeObjectURL(fileUrl);
-      } catch {}
-      setFileUrl(null);
-    }
     setErrorMessage(null);
     setProgressMessage("Reading report...");
     setProgressPercent(0);
@@ -141,14 +134,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     }
 
     try {
-      if (fileUrl) {
-        try {
-          URL.revokeObjectURL(fileUrl);
-        } catch {}
-      }
-      const url = URL.createObjectURL(selectedFile);
       setFile(selectedFile);
-      setFileUrl(url);
       setStep("preview");
     } catch (err) {
       console.error(err);
@@ -426,7 +412,6 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
               {/* Left: PDF Canvas Preview */}
               <div className="md:w-1/2 rounded-lg border border-[var(--border-subtle)] overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center min-h-[260px]">
                 <PdfPreview
-                  url={fileUrl || undefined}
                   file={file || undefined}
                   password={password}
                   onPasswordRequired={() => setIsPasswordProtected(true)}

@@ -3,6 +3,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 
+// Polyfill Promise.try for environments lacking ES2024 Promise.try support
+if (typeof (Promise as any).try !== "function") {
+  (Promise as any).try = function (fn: () => any) {
+    return new Promise((resolve) => resolve(fn()));
+  };
+}
+
 interface PdfPreviewProps {
   url?: string;
   file?: File | Blob;
@@ -37,7 +44,6 @@ export function PdfPreview({
 
   useEffect(() => {
     let isCancelled = false;
-    let localBlobUrl: string | null = null;
     let activeDoc: any = null;
 
     async function loadPdf() {
@@ -45,35 +51,25 @@ export function PdfPreview({
       setRenderError(null);
 
       try {
-        const pdfjsLib = await import("pdfjs-dist");
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
         if (typeof window !== "undefined" && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         }
 
         let documentSource: any = null;
 
-        if (url) {
-          documentSource = { url };
-        } else if (file) {
-          localBlobUrl = URL.createObjectURL(file);
-          documentSource = { url: localBlobUrl };
+        if (file) {
+          const buffer = await file.arrayBuffer();
+          const bufferCopy = new Uint8Array(buffer).slice();
+          documentSource = { data: bufferCopy };
         } else if (data) {
-          if (
-            typeof Blob !== "undefined" &&
-            typeof URL !== "undefined" &&
-            typeof URL.createObjectURL === "function"
-          ) {
-            const blob =
-              data instanceof Blob
-                ? data
-                : new Blob([data as any], { type: "application/pdf" });
-            localBlobUrl = URL.createObjectURL(blob);
-            documentSource = { url: localBlobUrl };
-          } else {
-            const bufferCopy =
-              data instanceof Uint8Array ? data.slice() : data.slice(0);
-            documentSource = { data: bufferCopy };
-          }
+          const bufferCopy =
+            data instanceof Uint8Array
+              ? data.slice()
+              : new Uint8Array(data).slice();
+          documentSource = { data: bufferCopy };
+        } else if (url) {
+          documentSource = { url };
         }
 
         if (!documentSource) {
@@ -130,11 +126,6 @@ export function PdfPreview({
 
     return () => {
       isCancelled = true;
-      if (localBlobUrl) {
-        try {
-          URL.revokeObjectURL(localBlobUrl);
-        } catch {}
-      }
       if (activeDoc) {
         try {
           activeDoc.destroy?.();
