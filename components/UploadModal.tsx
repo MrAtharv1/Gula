@@ -58,6 +58,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const [step, setStep] = useState<UploadStep>("pick");
   const [file, setFile] = useState<File | null>(null);
   const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Progress state during long report extraction
@@ -89,6 +90,12 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     setStep("pick");
     setFile(null);
     setFileBuffer(null);
+    if (fileUrl) {
+      try {
+        URL.revokeObjectURL(fileUrl);
+      } catch {}
+      setFileUrl(null);
+    }
     setErrorMessage(null);
     setProgressMessage("Reading report...");
     setProgressPercent(0);
@@ -136,8 +143,15 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     }
 
     try {
+      if (fileUrl) {
+        try {
+          URL.revokeObjectURL(fileUrl);
+        } catch {}
+      }
+      const url = URL.createObjectURL(selectedFile);
       const buffer = await selectedFile.arrayBuffer();
       setFile(selectedFile);
+      setFileUrl(url);
       setFileBuffer(buffer);
       setStep("preview");
     } catch (err) {
@@ -178,22 +192,8 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     setProgressMessage("Classifying pages...");
 
     try {
-      // Ensure we have a valid non-detached ArrayBuffer to process
-      let bufferToProcess: ArrayBuffer;
-      const isDetached =
-        !fileBuffer ||
-        (fileBuffer as any).detached ||
-        fileBuffer.byteLength === 0;
-
-      if (!isDetached && fileBuffer) {
-        bufferToProcess = fileBuffer.slice(0);
-      } else {
-        bufferToProcess = await file.arrayBuffer();
-        setFileBuffer(bufferToProcess.slice(0));
-      }
-
-      // 1. Extract text and spatial token items
-      const extracted = await extractPdfText(bufferToProcess);
+      // 1. Extract text and spatial token items directly from the File object
+      const extracted = await extractPdfText(file);
 
       // 2. Score and classify pages
       const classification = classifyDocumentPages(extracted.pages);
@@ -424,13 +424,15 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
         )}
 
         {/* ================= STEP 2: PREVIEW SCREEN ================= */}
-        {step === "preview" && file && fileBuffer && (
+        {step === "preview" && file && (
           <div className="space-y-4">
             <div className="flex flex-col md:flex-row gap-4 items-stretch">
               {/* Left: PDF Canvas Preview */}
               <div className="md:w-1/2 rounded-lg border border-[var(--border-subtle)] overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center min-h-[260px]">
                 <PdfPreview
-                  data={fileBuffer}
+                  url={fileUrl || undefined}
+                  file={file || undefined}
+                  data={fileBuffer || undefined}
                   password={password}
                   onPasswordRequired={() => setIsPasswordProtected(true)}
                 />

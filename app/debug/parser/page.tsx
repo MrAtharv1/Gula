@@ -84,19 +84,34 @@ export default function ParserDebugPage() {
     setExpandedPages({});
   };
 
-  const processPdfData = async (buffer: ArrayBuffer, fileName: string) => {
+  const processPdfData = async (input: ArrayBuffer | Blob, fileName: string) => {
     setLoading(true);
+    let blobUrl: string | null = null;
     try {
       const pdfjsLib = await import("pdfjs-dist");
       if (typeof window !== "undefined" && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
       }
 
-      const bufferCopy = buffer.slice(0);
-      const pdf = await pdfjsLib.getDocument({
-        data: bufferCopy,
-        useSystemFonts: true,
-      }).promise;
+      let loadingParam: any;
+      if (typeof Blob !== "undefined" && input instanceof Blob) {
+        blobUrl = URL.createObjectURL(input);
+        loadingParam = { url: blobUrl, useSystemFonts: true };
+      } else if (
+        typeof Blob !== "undefined" &&
+        typeof URL !== "undefined" &&
+        typeof URL.createObjectURL === "function"
+      ) {
+        const blob = new Blob([input as any], { type: "application/pdf" });
+        blobUrl = URL.createObjectURL(blob);
+        loadingParam = { url: blobUrl, useSystemFonts: true };
+      } else {
+        const bufferCopy =
+          input instanceof Uint8Array ? input.slice() : (input as ArrayBuffer).slice(0);
+        loadingParam = { data: bufferCopy, useSystemFonts: true };
+      }
+
+      const pdf = await pdfjsLib.getDocument(loadingParam).promise;
 
       const totalPages = pdf.numPages;
       let totalDocTextLength = 0;
@@ -388,6 +403,11 @@ export default function ParserDebugPage() {
       alert("Error parsing PDF: " + (err.message || String(err)));
     } finally {
       setLoading(false);
+      if (blobUrl) {
+        try {
+          URL.revokeObjectURL(blobUrl);
+        } catch {}
+      }
     }
   };
 
@@ -395,8 +415,7 @@ export default function ParserDebugPage() {
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
       setFile(selected);
-      const buffer = await selected.arrayBuffer();
-      await processPdfData(buffer, selected.name);
+      await processPdfData(selected, selected.name);
     }
   };
 

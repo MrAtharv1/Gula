@@ -18,20 +18,9 @@ export interface ExtractedPage {
   tokens?: PositionedToken[];
 }
 
-export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ pages: ExtractedPage[]; fullText: string }> {
-  // Validate data is not detached or empty
-  if (
-    !data ||
-    (data as any).detached ||
-    (data instanceof Uint8Array && (data.buffer as any).detached) ||
-    data.byteLength === 0
-  ) {
-    throw new Error("Cannot extract text: document buffer is detached or empty.");
-  }
-
-  // Clone buffer so PDF.js Web Worker does not detach the original data
-  const bufferCopy = data instanceof Uint8Array ? data.slice() : data.slice(0);
-
+export async function extractPdfText(
+  input: ArrayBuffer | Uint8Array | Blob | string
+): Promise<{ pages: ExtractedPage[]; fullText: string }> {
   // Dynamically import pdfjs-dist so it only loads on the client
   const pdfjsLib = await import("pdfjs-dist");
 
@@ -40,18 +29,61 @@ export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ 
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   }
 
-  const loadingTask = pdfjsLib.getDocument({
-    data: bufferCopy,
-    useSystemFonts: true,
-  });
+  let loadingTask: any;
+  let tempBlobUrl: string | null = null;
 
-  const pdf = await loadingTask.promise;
-  const pages: ExtractedPage[] = [];
-  const fullTextParts: string[] = [];
+  if (typeof input === "string") {
+    loadingTask = pdfjsLib.getDocument({
+      url: input,
+      useSystemFonts: true,
+    });
+  } else if (typeof Blob !== "undefined" && input instanceof Blob) {
+    tempBlobUrl = URL.createObjectURL(input);
+    loadingTask = pdfjsLib.getDocument({
+      url: tempBlobUrl,
+      useSystemFonts: true,
+    });
+  } else {
+    // ArrayBuffer or Uint8Array
+    const rawBuffer = input as ArrayBuffer | Uint8Array;
+    if (
+      !rawBuffer ||
+      (rawBuffer as any).detached ||
+      (rawBuffer instanceof Uint8Array && (rawBuffer.buffer as any).detached) ||
+      rawBuffer.byteLength === 0
+    ) {
+      throw new Error("Cannot extract text: document buffer is detached or empty.");
+    }
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
+    if (
+      typeof Blob !== "undefined" &&
+      typeof URL !== "undefined" &&
+      typeof URL.createObjectURL === "function"
+    ) {
+      const blob = new Blob([rawBuffer as any], { type: "application/pdf" });
+      tempBlobUrl = URL.createObjectURL(blob);
+      loadingTask = pdfjsLib.getDocument({
+        url: tempBlobUrl,
+        useSystemFonts: true,
+      });
+    } else {
+      const bufferCopy =
+        rawBuffer instanceof Uint8Array ? rawBuffer.slice() : rawBuffer.slice(0);
+      loadingTask = pdfjsLib.getDocument({
+        data: bufferCopy,
+        useSystemFonts: true,
+      });
+    }
+  }
+
+  try {
+    const pdf = await loadingTask.promise;
+    const pages: ExtractedPage[] = [];
+    const fullTextParts: string[] = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
 
     interface PositionedItem {
       str: string;
@@ -130,4 +162,11 @@ export async function extractPdfText(data: ArrayBuffer | Uint8Array): Promise<{ 
     pages,
     fullText: fullTextParts.join("\n\n"),
   };
+  } finally {
+    if (tempBlobUrl) {
+      try {
+        URL.revokeObjectURL(tempBlobUrl);
+      } catch {}
+    }
+  }
 }

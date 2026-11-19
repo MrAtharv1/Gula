@@ -4,7 +4,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 
 interface PdfPreviewProps {
-  data: ArrayBuffer | Uint8Array;
+  url?: string;
+  file?: File | Blob;
+  data?: ArrayBuffer | Uint8Array;
   password?: string;
   onPasswordRequired?: () => void;
   onPageCount?: (count: number) => void;
@@ -12,6 +14,8 @@ interface PdfPreviewProps {
 }
 
 export function PdfPreview({
+  url,
+  file,
   data,
   password,
   onPasswordRequired,
@@ -25,27 +29,20 @@ export function PdfPreview({
   const [renderError, setRenderError] = useState<string | null>(null);
   const pdfDocRef = useRef<any>(null);
 
+  // Keep stable callback refs to avoid re-triggering effect on parent re-renders
+  const onPasswordRequiredRef = useRef(onPasswordRequired);
+  onPasswordRequiredRef.current = onPasswordRequired;
+  const onPageCountRef = useRef(onPageCount);
+  onPageCountRef.current = onPageCount;
+
   useEffect(() => {
     let isCancelled = false;
-    let loadingTask: any = null;
+    let localBlobUrl: string | null = null;
+    let activeDoc: any = null;
 
     async function loadPdf() {
       setIsLoading(true);
       setRenderError(null);
-
-      // Verify that data is available and not detached
-      if (
-        !data ||
-        (data as any).detached ||
-        (data instanceof Uint8Array && (data.buffer as any).detached) ||
-        data.byteLength === 0
-      ) {
-        if (!isCancelled) {
-          setRenderError("Couldn't render page preview: document buffer is unavailable.");
-          setIsLoading(false);
-        }
-        return;
-      }
 
       try {
         const pdfjsLib = await import("pdfjs-dist");
@@ -53,34 +50,66 @@ export function PdfPreview({
           pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         }
 
-        // CRITICAL: Clone the buffer before passing to getDocument!
-        // When using a Web Worker, pdfjs transfers the underlying ArrayBuffer,
-        // which detaches it. Passing a sliced copy keeps the parent data intact.
-        const bufferCopy = data instanceof Uint8Array ? data.slice() : data.slice(0);
+        let documentSource: any = null;
 
-        loadingTask = pdfjsLib.getDocument({
-          data: bufferCopy,
+        if (url) {
+          documentSource = { url };
+        } else if (file) {
+          localBlobUrl = URL.createObjectURL(file);
+          documentSource = { url: localBlobUrl };
+        } else if (data) {
+          if (
+            typeof Blob !== "undefined" &&
+            typeof URL !== "undefined" &&
+            typeof URL.createObjectURL === "function"
+          ) {
+            const blob =
+              data instanceof Blob
+                ? data
+                : new Blob([data as any], { type: "application/pdf" });
+            localBlobUrl = URL.createObjectURL(blob);
+            documentSource = { url: localBlobUrl };
+          } else {
+            const bufferCopy =
+              data instanceof Uint8Array ? data.slice() : data.slice(0);
+            documentSource = { data: bufferCopy };
+          }
+        }
+
+        if (!documentSource) {
+          if (!isCancelled) {
+            setRenderError("No document data provided.");
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        const loadingTask = pdfjsLib.getDocument({
+          ...documentSource,
           password: password || undefined,
           useSystemFonts: true,
         });
 
         // Set password callback if needed
         loadingTask.onPassword = (callback: any, reason: number) => {
-          if (onPasswordRequired) {
-            onPasswordRequired();
+          if (onPasswordRequiredRef.current) {
+            onPasswordRequiredRef.current();
           }
         };
 
         const doc = await loadingTask.promise;
         if (isCancelled) {
-          doc.destroy?.();
+          try {
+            (doc as any).destroy?.();
+          } catch {}
           return;
         }
 
+        activeDoc = doc;
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
-        if (onPageCount) {
-          onPageCount(doc.numPages);
+        if (onPageCountRef.current) {
+          onPageCountRef.current(doc.numPages);
         }
 
         await renderPage(doc, 1);
@@ -88,7 +117,7 @@ export function PdfPreview({
         if (isCancelled) return;
         console.error("PDF preview error:", err);
         if (err.name === "PasswordException") {
-          if (onPasswordRequired) onPasswordRequired();
+          if (onPasswordRequiredRef.current) onPasswordRequiredRef.current();
         } else {
           setRenderError("Couldn't render page preview.");
         }
@@ -101,11 +130,18 @@ export function PdfPreview({
 
     return () => {
       isCancelled = true;
-      if (loadingTask && typeof loadingTask.destroy === "function") {
-        loadingTask.destroy().catch(() => {});
+      if (localBlobUrl) {
+        try {
+          URL.revokeObjectURL(localBlobUrl);
+        } catch {}
+      }
+      if (activeDoc) {
+        try {
+          activeDoc.destroy?.();
+        } catch {}
       }
     };
-  }, [data, password, onPasswordRequired, onPageCount]);
+  }, [url, file, data, password]);
 
   const renderPage = async (doc: any, pageNum: number) => {
     if (!canvasRef.current) return;
