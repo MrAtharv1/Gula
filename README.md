@@ -1,253 +1,159 @@
-# Gula
+# Gula — Blood Test Report Tracker & Analyzer
 
-> **Private, local-first health test report tracker.**  
-> Turn laboratory diagnostic PDF reports into a clean, trackable personal health dashboard.  
-> **100% private. Zero LLM. Zero paid APIs. Local-first architecture: all processing and primary storage occur in-browser with optional cross-device cloud sync.**
+> **Local-first blood test report analyzer, longitudinal health dashboard, and physician-ready PDF exporter.**  
+> Zero LLM. Zero third-party ads or trackers. All PDF parsing runs directly in your browser or Android WebView, with optional cross-device sync via Supabase.
 
 ---
 
-## Architecture & Principles
+## Key Features
 
-- **Local-First & Offline**: All PDF text extraction, spatial row reconstruction, biomarker normalization, and primary storage run in the browser using **PDF.js** and **Dexie (IndexedDB: `Gula_DB`)**. The app remains fully functional, fast, and offline-capable without an account.
-- **Backward-Compatible Database Migration**: On existing installs, Gula automatically detects legacy data in `HealthTrack_V2_DB` and migrates all test reports and results to `Gula_DB` without losing any user records.
-- **Optional Accounts & Cloud Sync**:
-  - **Optional Authentication**: Sign in via email magic link or Google OAuth. Signing in is strictly optional; the app works completely signed out.
-  - **Local-First Write-Through**: All report uploads, test results, and status updates write to local IndexedDB first, then synchronize to the cloud in the background.
-  - **Lazy PDF Storage**: Original PDF documents are uploaded to private cloud storage (Supabase Storage) and downloaded lazily only when the user taps *"View PDF"*.
-  - **Bi-Directional Status Sync**: Undoing or restoring a report on a phone updates the report status across all connected PCs within seconds.
-  - **Never-Silent Conflict Resolution**: On first sign-in with existing local data, prompts: *"Merge with your account"* or *"Start fresh"*.
-  - **Security & Row-Level Security (RLS)**: Enforced per-user isolation where users can only view, insert, update, and delete their own rows and files.
-  - **Account & Cloud Data Deletion**: Dedicated 1-click permanent erasure of all cloud records, storage files, and user auth.
-- **Zero LLM / Zero External AI**: Clinical biomarker parsing relies on deterministic spatial coordinate clustering, regex tokenization, and an extensive clinical alias dictionary covering 65+ biomarkers.
-- **Design Language**: Apple, Linear, and Vercel aesthetic. Muted neutral palette, hairline 1px borders, subtle shadows, rounded-2xl cards, soft status badges (Emerald normal, Amber borderline, Rose needs attention), and zero flash on load.
-- **Responsive Navigation**: Native app feel on smartphones (bottom tab bar, 44px+ touch targets) and wide productivity layouts on tablets and 1440px desktop screens (slim sidebar navigation).
-- **Progressive Web App (PWA)**: Installable directly to phone or desktop home screens with offline caching for core assets and workers.
+- **Zero-LLM Browser PDF Parser (`PDF.js`):** Deterministic spatial table extraction reads digital lab PDFs locally—classifying result pages vs. cover/marketing/interpretation pages, inheriting column layouts across continuation pages, preserving qualitative values (`Negative`, `Pale yellow`, `4-6 /hpf`), extracting methods & multi-tier ranges, and separating urine vs. blood markers.
+- **Full-Name Biomarker Dashboard:** Displays full biomarker names with short forms in brackets (e.g., `Mean Corpuscular Volume (MCV)`, `White Blood Cell Count (WBC)`), range bars, sparklines, status badges (`Normal`, `Borderline`, `High`, `Low`), and report-to-report deltas.
+- **Trends & Multi-Metric Comparisons:** Single-metric history charts with reference range shading, up-to-4-metric normalized overlay charts (`MultiMetricTrendChart`), and side-by-side two-report delta comparisons (`ReportCompareView`).
+- **Doctor-Readable PDF Export:** Generates a printable landscape PDF summary (`gula-doctor-report-*.pdf`) featuring a **GULA : Blood Test Report Tracker & Analyzer** cover page, patient profile & notes, out-of-range highlights, chronological report list, reference ranges, sparkline trends, and formatted dates (`10 Oct 2020`).
+- **12 Languages & Plain-Language Explainers:** Supports UI and plain-language biomarker explanations across 12 languages (`en`, `hi`, `ta`, `te`, `kn`, `ml`, `pa`, `mr`, `fr`, `de`, `es`, `zh`).
+- **My Account, Local Profile & Privacy Policy:** Per-account isolated `About me` profile fields (name, age, biological sex, blood group, height/weight/BMI, notes) and device-uploaded avatar DP, unit converters (`mg/dL` <-> `mmol/L`), undo/restore history, JSON/CSV backups, one-click data wipe, and an explicit 6-point Privacy Policy.
+- **Guest Mode & Optional Cloud Sync (PKCE):** Use up to 2 reports locally as a guest (stored in **Dexie IndexedDB** `Gula_DB`), or sign in with **Email/Password** or **Google OAuth (PKCE)** to sync across devices via Supabase with merge/fresh conflict resolution.
+- **SEO Biomarker Guides:** Server-rendered and statically generated public reference guides at `/markers` and `/markers/[slug]`, plus `/robots.txt` and `/sitemap.xml`.
+- **Android Mobile App (Capacitor):** Bundled static export wrapped with Capacitor Android, featuring a branded pink Splash Screen, mobile-accessible Sign in / Appearance / Language controls in **My Account**, Google OAuth PKCE deep links (`com.gula.health://auth-callback`), and hardware back-button support.
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-- **Node.js** 18.18+ or 20+
+- **Node.js** 20+
 - **npm** 9+
+- **Java JDK 21 + Android SDK** *(only needed when building Android `.apk` / `.aab`)*
 
-### Installation & Run
+### Installation & Local Development
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. (Optional) Configure Supabase Environment Variables in .env.local
-# NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-# Note: If omitted, Gula runs in offline local-first mode with built-in test mock sync.
+# 2. (Optional) Configure Supabase environment variables
+cp .env.example .env.local
+# Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+# If omitted, Gula runs in offline local-first mode with an in-memory mock sync store.
 
-# 3. Run local development server
+# 3. Start development server
 npm run dev
-
-# 4. Open in browser
 # Visit http://localhost:3000
 ```
 
-### Production Build & Verification
+### Verification & Builds
 
 ```bash
-# Build optimized production bundle
-npm run build
+# Run full test suite (235 tests across 21 test files)
+npm test
 
-# Start production server
+# Type-check with Next.js route types
+npx next typegen && npx tsc --noEmit
+
+# Production Next.js web build
+npm run build
 npm run start -- -p 3000
 
-# Execute full test suite (114 tests across 12 test suites)
-npm test -- --run
+# Build static export and sync Android Capacitor assets
+npm run build:apk
+
+# Build signed Android APK & Play Store AAB (requires android/keystore.properties)
+cd android && ./gradlew assembleRelease bundleRelease --no-daemon
 ```
 
 ---
 
-## Folder Structure
+## Project Structure
 
 ```
 healthtracker/
-├── app/                              # Next.js App Router root
-│   ├── layout.tsx                    # Root layout, fonts, PWA metadata, theme init script
-│   ├── page.tsx                      # Primary shell (Home, Trends, Settings, Sync engine)
-│   ├── globals.css                   # Tailwind v4 theme tokens, CSS variables, utilities
-│   ├── error.tsx                     # Next.js route-level error boundary
-│   └── global-error.tsx              # Root HTML critical error boundary
-├── components/                       # UI Component Library
-│   ├── ui/                           # Reusable design system primitives
-│   │   ├── Badge.tsx                 # Health status indicator badges
-│   │   ├── Button.tsx                # Primary, secondary, ghost, danger buttons
-│   │   ├── Card.tsx                  # Rounded-2xl hairline cards
-│   │   ├── EmptyState.tsx            # Clean, illustration-free empty states
-│   │   ├── Modal.tsx                 # Responsive sheet (bottom on mobile, modal on desktop)
-│   │   ├── RangeBar.tsx              # Slim clinical biomarker reference range bar
-│   │   ├── Skeleton.tsx              # Accessible pulsing shimmer placeholders
-│   │   ├── Sparkline.tsx             # Inline SVG longitudinal sparkline
-│   │   └── Toast.tsx                 # Actionable notification toasts
-│   ├── BiomarkerCard.tsx             # Biomarker card with sparkline, status & delta
-│   ├── BiomarkerTrendChart.tsx       # Recharts longitudinal chart with normal range band
-│   ├── DashboardSkeleton.tsx         # Initial loading skeleton view
-│   ├── ErrorBoundary.tsx             # React error boundary with retry capability
-│   ├── ManualEntryModal.tsx          # Fast manual biomarker logger
-│   ├── MetricDetailModal.tsx         # Deep-dive metric modal with unit conversions
-│   ├── MultiMetricTrendChart.tsx     # Overlay up to 4 metrics (raw & normalized modes)
-│   ├── Navbar.tsx                    # Responsive nav (bottom bar on mobile, sidebar on desktop)
-│   ├── PdfPreview.tsx                # Multi-page canvas PDF renderer using PDF.js
-│   ├── ReportCompareView.tsx         # Side-by-side delta comparison of two checkup dates
-│   ├── ServiceWorkerRegister.tsx     # PWA Service Worker lifecycle registration
-│   ├── SettingsView.tsx              # Settings, Auth & Sync, Undo manager, export, wipe
-│   ├── SyncMergeModal.tsx            # First sign-in conflict resolution (Merge vs Fresh)
-│   ├── ThemeProvider.tsx             # System/light/dark theme provider
-│   ├── ThemeToggle.tsx               # Minimal 3-way theme toggle
-│   └── UploadModal.tsx               # 3-step upload sheet (file pick, preview, parse)
+├── app/
+│   ├── layout.tsx                    # Root layout, SEO JSON-LD, theme init, PWA metadata
+│   ├── page.tsx                      # App shell (Home, Trends, My Account, Export PDF, Sync)
+│   ├── globals.css                   # Tailwind v4 design tokens & CSS variables
+│   ├── markers/                      # Public SEO biomarker guide pages (/markers & /markers/[slug])
+│   ├── robots.ts                     # Search engine crawler directives
+│   └── sitemap.ts                    # Dynamic XML sitemap for marker guides
+├── components/
+│   ├── ui/                           # Badge, Button, Card, EmptyState, Modal, RangeBar, Sparkline, Toast
+│   ├── AuthModal.tsx                 # Email/Password & Google OAuth modal
+│   ├── BiomarkerCard.tsx             # Biomarker card (full name + bracketed short form, range bar)
+│   ├── BiomarkerTrendChart.tsx       # Recharts single-metric longitudinal chart
+│   ├── CapacitorBridge.tsx           # Android status bar, PKCE deep-link handler & back navigation
+│   ├── HomeDashboardView.tsx         # Categorized home overview with status filters
+│   ├── ManualEntryModal.tsx          # Manual biomarker entry form
+│   ├── MetricDetailModal.tsx         # Detailed metric view, layman explainer & unit toggle
+│   ├── MultiMetricTrendChart.tsx     # Up to 4-metric overlay trend comparison chart
+│   ├── Navbar.tsx                    # Desktop sidebar + mobile bottom tab bar
+│   ├── PdfPreview.tsx                # Multi-page PDF canvas viewer via PDF.js
+│   ├── ReportCompareView.tsx         # Side-by-side comparison across two reports
+│   ├── ServiceWorkerRegister.tsx     # Browser PWA SW lifecycle (auto-disabled inside Capacitor APK)
+│   ├── SettingsView.tsx              # My Account (mobile quick controls, About me, DP, Reports, Units, Data, Privacy)
+│   ├── SingleMetricTrendsView.tsx    # Collapsible panel table & mobile card trends + PDF export
+│   ├── SplashScreen.tsx              # Branded launch screen overlay
+│   ├── SyncMergeModal.tsx            # First sign-in conflict dialog (Merge vs. Start fresh)
+│   └── UploadModal.tsx               # Multi-step PDF upload, review & duplicate detection flow
 ├── lib/
-│   ├── db/                           # Dexie IndexedDB layer (Gula_DB with legacy migration)
-│   │   ├── duplicateDetection.ts     # Ingest duplicate detector based on date & tests
-│   │   ├── index.ts                  # Dexie repository methods (CRUD, undo, sync & migration)
-│   │   ├── metricDictionary.ts       # 65+ clinical metrics, aliases, bounds & descriptions
-│   │   ├── schema.ts                 # TypeScript data models, sync queue & category types
-│   │   └── unitConversion.ts         # mg/dL <-> mmol/L bidirectional converters
-│   ├── parser/                       # Zero-LLM In-Browser PDF Parsing Engine
-│   │   ├── dateDetector.ts           # Clinical report date detector (DD/MM/YYYY, etc.)
-│   │   ├── labDetector.ts            # Diagnostic lab detection (Lal, Metropolis, Thyrocare...)
-│   │   ├── lineCleaner.ts            # Text normalization and noise stripper
-│   │   ├── pdfParser.ts              # Spatial row reconstruction and result parser
-│   │   ├── rangeExtractor.ts         # Numeric reference range parser ("13-17", "<200", etc.)
-│   │   ├── textExtractor.ts          # PDF.js text extraction with (x, y) coordinates
-│   │   └── types.ts                  # Parser input/output interfaces
-│   ├── store/                        # State stores
-│   │   ├── preferenceStore.ts        # Unit preferences (glucose, cholesterol)
-│   │   ├── syncStore.ts              # User, sync status (synced, syncing, offline), merge state
-│   │   ├── themeStore.ts             # Theme state (light / dark / system)
-│   │   └── toastStore.ts             # Toast notification queue
-│   ├── sync/                         # Local-First Cloud Sync Layer
-│   │   ├── supabaseClient.ts         # Supabase client, auth providers, storage, mock fallback
-│   │   ├── syncEngine.ts             # Bi-directional sync worker, lazy PDF downloader, wipe
-│   │   └── types.ts                  # Cloud entity types and sync status definitions
+│   ├── db/
+│   │   ├── duplicateDetection.ts     # Duplicate check using report date & test values
+│   │   ├── index.ts                  # Dexie IndexedDB repository (Gula_DB + HealthTrack_V2_DB migration)
+│   │   ├── laymanExplainer.ts        # Plain-language explanations across 80+ markers
+│   │   ├── metricDictionary.ts       # Canonical dictionary, aliases, unit defaults & key alias mapping
+│   │   ├── schema.ts                 # Report, Result & Summary TypeScript schemas
+│   │   └── unitConversion.ts         # mg/dL <-> mmol/L bidirectional conversions
+│   ├── i18n/
+│   │   ├── metricTranslations.ts     # Biomarker titles & explanations in 12 languages
+│   │   └── translations.ts           # Full UI translations in 12 languages
+│   ├── parser/
+│   │   ├── dateDetector.ts           # Sample collection & report date extractor
+│   │   ├── labDetector.ts            # Lab name detector (25+ Indian & US labs + generic fallback)
+│   │   ├── layoutAdaptiveExtractor.ts# Dynamic X-column table extractor with headerless page inheritance
+│   │   ├── lineCleaner.ts            # Non-result banner & administrative line filter
+│   │   ├── nameNormalizer.ts         # Context-aware normalization (blood vs. urine, % vs. absolute)
+│   │   ├── pageClassifier.ts         # Page classifier (detail tables, summary tables, noise skip)
+│   │   ├── pdfParser.ts              # Main deterministic parser orchestrator + PII scrubbing
+│   │   ├── rangeExtractor.ts         # Multi-tier & interval reference range extractor
+│   │   ├── textExtractor.ts          # PDF.js spatial coordinate text extractor
+│   │   ├── types.ts                  # Parser input/output interfaces
+│   │   └── valueRangeParser.ts       # Numeric/qualitative values, flags & unit normalizer
+│   ├── store/                        # Zustand stores (preferences per account, theme, sync, toast)
+│   ├── sync/
+│   │   ├── supabaseClient.ts         # Supabase PKCE client, Email/Google OAuth & mock fallback
+│   │   ├── syncEngine.ts             # Background sync, lazy PDF download & account deletion
+│   │   └── types.ts                  # Sync models & states
 │   └── utils/
-│       ├── cn.ts                     # Class name merger helper
-│       ├── date.ts                   # Date formatting helper
-│       └── trends.ts                 # Pure mathematical trend sequence detector
-├── public/                           # Static assets
-│   ├── icons/                        # PWA maskable icons (192x192, 512x512, SVG)
-│   ├── manifest.json                 # Web App Manifest
-│   ├── pdf.worker.min.mjs            # Local PDF.js Web Worker (no external CDN)
-│   └── sw.js                         # PWA Service Worker for offline caching
-├── supabase/
-│   └── schema.sql                    # SQL DDL, RLS policies, and storage bucket configuration
-└── tests/                            # Comprehensive Vitest test suites (114 tests)
-    ├── data-layer.test.ts            # IndexedDB transactions, repository, units
-    ├── design-system.test.tsx        # UI tokens, buttons, modal, badges
-    ├── home-dashboard-phase4.test.tsx# RangeBar, sparkline, cards, category sections
-    ├── migration.test.ts             # IndexedDB migration from HealthTrack_V2_DB to Gula_DB
-    ├── parser-phase3.test.ts         # Clinical lab fixtures, ranges, spatial parsing
-    ├── parser.test.ts                # Date parsing, lab detection, line cleaner
-    ├── phase7-pwa-qa.test.tsx        # PWA, viewports (375px-1440px), error boundaries, QA
-    ├── phase8-accounts-sync.test.tsx # Optional auth, write-through, lazy PDF, status sync, merge
-    ├── settings-undo-phase6.test.tsx # Multi-step undo, restore, export, wipe
-    ├── trends-phase5.test.tsx        # Recharts trends, math insights, overlays
-    ├── upload-flow.test.tsx          # Upload modal validations, duplicates, errors
-    └── utils.test.ts                 # Helper functions
+│       ├── doctorPdfExport.ts        # Multi-page physician-ready PDF report generator
+│       └── profileExtractor.ts       # Client-side demographic hint extraction & BMI calculator
+├── android/                          # Capacitor Android Studio & Gradle project
+├── scripts/build-apk-web.mjs         # Static export helper for Capacitor Android builds
+├── supabase/schema.sql               # Postgres DDL, RLS policies & private storage bucket rules
+└── tests/                            # 21 Vitest suites (235 tests)
 ```
 
 ---
 
-## Supabase Setup & Security Configuration
+## Supabase Setup & Security Architecture
 
-Gula includes production-ready database schema and Row-Level Security policies in [`supabase/schema.sql`](file:///c:/Users/intel/vscodews/healthtracker/supabase/schema.sql).
+Database tables and Row-Level Security policies live in [supabase/schema.sql](supabase/schema.sql):
 
-### 1. Database Tables & Row-Level Security
-- `reports`: Tracks report metadata, test dates, lab names, status (`active` | `undone`), and PDF cloud paths. RLS restricts access to `auth.uid() = user_id`.
-- `results`: Tracks individual biomarker readings linked to `reports.id`. RLS restricts access to `auth.uid() = user_id`.
+1. **Tables & RLS:** `public.reports` and `public.results` both enforce `auth.uid() = user_id` across `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
+2. **Private PDF Storage:** Bucket `healthtrack-reports` (`public = false`) restricts PDF object access using owner-scoped RLS policies.
+3. **Authentication & PKCE:** [lib/sync/supabaseClient.ts](lib/sync/supabaseClient.ts) initializes Supabase Auth with `flowType: "pkce"` for both web and mobile OAuth (`com.gula.health://auth-callback`).
+4. **Encryption Scope:** Signed-in cloud records and PDFs are protected by **HTTPS/TLS in transit** and **standard server-side encryption at rest** managed by Supabase—Gula does **not** use client-side zero-knowledge / end-to-end encryption.
+5. **Local Storage vs. IndexedDB:** Lab reports, biomarker readings, reference ranges, and PDF blobs stay in **Dexie IndexedDB** (`Gula_DB`). Only Supabase auth tokens, theme (`healthtrack-theme`), and UI/profile preferences (`healthtrack_preferences`) are stored in `localStorage`.
 
-### 2. Storage Bucket
-- `healthtrack-reports`: Private bucket storing original PDFs under `${auth.uid()}/${reportId}.pdf`. RLS restricts upload, download, and deletion strictly to the authenticated owner.
-
-### 3. Environment Variables
-Create `.env.local` in project root:
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-supabase-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-```
+> **Pre-Release Check:** Always verify live RLS isolation in your Supabase project using two separate user accounts to confirm neither account can query the other's rows or download files from `healthtrack-reports`.
 
 ---
 
-## How to Add New Metric Aliases
+## Adding New Biomarkers or Aliases
 
-All clinical metric definitions and alias mappings reside in [`lib/db/metricDictionary.ts`](file:///c:/Users/intel/vscodews/healthtracker/lib/db/metricDictionary.ts).
-
-To add a new biomarker or expand alias recognition for an existing one:
-
-### 1. Adding an Alias to an Existing Biomarker
-Locate the metric entry in `METRIC_DICTIONARY` and add lowercased search aliases into its `aliases` array:
-
-```ts
-// Example: Adding "hgb blood" and "total hb" to hemoglobin
-hemoglobin: {
-  canonicalKey: "hemoglobin",
-  displayName: "Hemoglobin",
-  category: "Blood",
-  standardUnit: "g/dL",
-  defaultLow: 13.0,
-  defaultHigh: 17.0,
-  aliases: [
-    "hemoglobin",
-    "haemoglobin",
-    "hb",
-    "hgb",
-    "hgb blood", // <- New alias
-    "total hb",   // <- New alias
-  ],
-  description: "Oxygen-carrying protein in red blood cells.",
-}
-```
-
-### 2. Adding a Completely New Biomarker
-Append a new entry with its category, reference intervals, aliases, and a concise plain-English explanation ($\le 20$ words):
-
-```ts
-lipoprotein_a: {
-  canonicalKey: "lipoprotein_a",
-  displayName: "Lipoprotein (a)",
-  category: "Lipids",
-  standardUnit: "mg/dL",
-  defaultHigh: 30.0,
-  aliases: [
-    "lipoprotein a",
-    "lipoprotein (a)",
-    "lp(a)",
-    "lpa",
-  ],
-  description: "Genetic variant of LDL cholesterol associated with cardiovascular risk.",
-},
-```
+1. **Dashboard, Reference Ranges & SEO Guides ([lib/db/metricDictionary.ts](lib/db/metricDictionary.ts)):** Add or update entries inside `METRIC_DICTIONARY` (`canonicalKey`, `displayName`, `category`, `standardUnit`, `defaultLow`, `defaultHigh`, `aliases`, `description`).
+2. **PDF Parser Recognition ([lib/parser/nameNormalizer.ts](lib/parser/nameNormalizer.ts)):** Mirror the `canonicalKey`, `category`, and lab aliases inside `KNOWN_METRICS` (or add a key mapping in `METRIC_KEY_ALIASES` inside [lib/db/metricDictionary.ts](lib/db/metricDictionary.ts)) so PDF uploads resolve cleanly into longitudinal trends and 12-language explanations.
 
 ---
 
-## Final QA & Sync Verification Checklist
+## Medical Disclaimer
 
-All QA and Sync scenarios are verified by automated end-to-end tests:
-
-| Scenario | Tested Condition | Result |
-| :--- | :--- | :--- |
-| **1. Upload Valid PDF** | Full clinical report with 20+ tests extracted with spatial coordinates | **Passed** — Ingests into IndexedDB, computes flags, updates dashboard immediately |
-| **2. Scanned PDF** | Scanned document / zero selectable text detected | **Passed** — Shows calm inline notice without crash |
-| **3. Non-PDF File** | Uploading non-PDF file (.png, .txt, .docx) | **Passed** — Rejected inline: *"Please upload a PDF file."* |
-| **4. Password-Protected PDF** | Locked document detection and unlock dialog | **Passed** — Prompts with inline unlock form |
-| **5. Duplicate Report** | Report with identical date and matching lab results | **Passed** — Warns user before creating duplicate entries |
-| **6. Upload Wrong PDF + Undo** | Mistaken file uploaded, followed by "Undo last upload" | **Passed** — Reverts state across dashboard, charts, and trends instantly |
-| **7. Theme Switching** | Light, Dark, and System mode transitions | **Passed** — Seamless transition, zero flash on load via inline head script |
-| **8. Responsive & PWA** | Tested on 375px (iPhone SE), 393px (iPhone 15), 768px (iPad), 1440px desktop | **Passed** — Bottom nav on mobile with 44px+ tap targets, slim sidebar on desktop, full PWA manifest & worker |
-| **9. Multi-Device Status Sync** | Undo/Restore on one device synchronizing to second device | **Passed** — Changes to `status` field propagate bidirectionally |
-| **10. Merge vs Fresh on Sign-In** | First sign-in on a device with existing local records | **Passed** — Asks *"Merge with your account"* or *"Start fresh"*; never silently overwrites |
-| **11. Database Migration** | Seamless migration from `HealthTrack_V2_DB` to `Gula_DB` | **Passed** — Existing installs preserve all historical records without data loss |
-
----
-
-## Security & Privacy Guarantee
-
-- **Local-First Guarantee**: Health reports are parsed directly within the Web Worker thread of your browser. Local IndexedDB is always the source of truth.
-- **Private Cloud Account**: If signed in, your records and original PDFs are stored under your private account with Row-Level Security isolating your data.
-- **No Third-Party Trackers**: No analytics scripts, no telemetry, no remote advertising trackers.
-- **Medical Disclaimer**: Gula is an informational dashboard and does not provide medical advice or diagnoses.
+Gula is an educational and personal health-tracking tool. Reference intervals vary across laboratories and patient populations. Always review original diagnostic PDFs and consult a qualified clinician for medical interpretation, diagnosis, or treatment decisions.

@@ -6,9 +6,13 @@ export function ServiceWorkerRegister() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
-    // In development mode, unregister active service workers and purge caches
-    // to prevent Turbopack HMR chunks from being served stale by Service Worker cache
-    if (process.env.NODE_ENV === "development") {
+    const isCapacitorNative = Boolean(
+      (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+    );
+
+    // Disable Service Worker in development (avoids stale Turbopack chunks)
+    // and inside Capacitor Android WebView (already bundled locally)
+    if (process.env.NODE_ENV === "development" || isCapacitorNative) {
       if (typeof navigator.serviceWorker.getRegistrations === "function") {
         navigator.serviceWorker.getRegistrations().then((registrations) => {
           for (const registration of registrations) {

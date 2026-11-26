@@ -69,12 +69,12 @@ const PRIVACY_POLICY_POINTS = [
     body: "Without signing in, your reports and profile fields stay stored locally in your browser’s IndexedDB and local storage until you sign in or clear them.",
   },
   {
-    title: "Encrypted cloud storage & transit",
-    body: "When you sign in via Email/Password or Google, synced reports and original PDFs are encrypted in transit (HTTPS/TLS) and encrypted at rest in private cloud storage.",
+    title: "Transport & cloud encryption at rest",
+    body: "When you sign in via Email/Password or Google, synced reports and original PDFs use HTTPS/TLS in transit and standard server-side encryption at rest on Supabase (not client-side end-to-end encryption).",
   },
   {
-    title: "Strict per-user access control",
-    body: "Database Row-Level Security (RLS) policies and user-scoped storage buckets ensure only your authenticated account can read, update, or download your records.",
+    title: "Per-user Row-Level Security (RLS)",
+    body: "Database Row-Level Security (RLS) policies and user-scoped storage rules restrict API access to rows and PDFs associated with your signed-in account ID.",
   },
   {
     title: "Zero ad tracking or data selling",

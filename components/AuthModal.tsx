@@ -307,7 +307,7 @@ export function AuthModal({
           <div className="flex items-start gap-2 pt-1 text-[11px] text-[var(--text-faint)] leading-relaxed">
             <ShieldCheck className="w-3.5 h-3.5 text-[var(--status-normal-dot)] shrink-0 mt-0.5" />
             <span>
-              Your health data is encrypted in transit and at rest with strict per-user access controls.
+              Your health data uses HTTPS/TLS in transit and Supabase server-side encryption at rest with Row-Level Security.
             </span>
           </div>
         </div>

@@ -113,6 +113,30 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
         expect(registerMock).toHaveBeenCalledWith("/sw.js");
       });
     });
+
+    it("skips service worker registration and clears registrations inside Capacitor native WebView", async () => {
+      const registerMock = vi.fn().mockResolvedValue({ scope: "/" });
+      const unregisterMock = vi.fn().mockResolvedValue(true);
+      Object.defineProperty(navigator, "serviceWorker", {
+        value: {
+          register: registerMock,
+          getRegistrations: vi.fn().mockResolvedValue([{ unregister: unregisterMock }]),
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      (window as any).Capacitor = { isNativePlatform: () => true };
+      try {
+        render(<ServiceWorkerRegister />);
+        await waitFor(() => {
+          expect(unregisterMock).toHaveBeenCalled();
+        });
+        expect(registerMock).not.toHaveBeenCalled();
+      } finally {
+        delete (window as any).Capacitor;
+      }
+    });
   });
 
   /* ------------------------------------------------------------------
