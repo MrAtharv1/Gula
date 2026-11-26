@@ -3,19 +3,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
-  getActiveReports,
-  getLatestResults,
-  getHistory,
+  getDashboardData,
   loadDemoData,
   migrateFromLegacyDatabase,
 } from "@/lib/db";
-import { Report, ResultWithDate, LatestResultSummary, MetricCategory } from "@/lib/db/schema";
-import { METRIC_DICTIONARY } from "@/lib/db/metricDictionary";
-import { Navbar, NavTab } from "@/components/Navbar";
+import { Report, ResultWithDate, LatestResultSummary } from "@/lib/db/schema";
 import { BiomarkerCard } from "@/components/BiomarkerCard";
-import { SettingsView } from "@/components/SettingsView";
+import { HomeDashboardView, HomeFilterType } from "@/components/HomeDashboardView";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ToastContainer } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -23,21 +18,48 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncMergeModal } from "@/components/SyncMergeModal";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PageContainer } from "@/components/ui/PageContainer";
-import { SingleMetricTrendsView } from "@/components/SingleMetricTrendsView";
+import { Navbar, NavTab } from "@/components/Navbar";
+import {
+  buildReportScopedSummaries,
+  cleanReportFileName,
+  getReportButtonLabel,
+} from "@/lib/utils/reportView";
 import { initSyncEngine, syncAll } from "@/lib/sync/syncEngine";
 import { toast } from "@/lib/store/toastStore";
 import { formatDate } from "@/lib/utils/date";
-import { Plus, Upload, FilePlus, Layers, GitCompare, LineChart as ChartIcon, CheckCircle2, ChevronDown } from "lucide-react";
+import {
+  Plus,
+  Upload,
+  FilePlus,
+  Layers,
+  GitCompare,
+  LineChart as ChartIcon,
+  ChevronDown,
+  FileText,
+  Check,
+} from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-// Lazy-load heavy chart and modal components for performance and mobile Lighthouse optimization
-const BiomarkerTrendChart = dynamic(
-  () => import("@/components/BiomarkerTrendChart").then((mod) => mod.BiomarkerTrendChart),
+// Lazy-load secondary tabs and heavy chart/modal components for fast TTI
+const SingleMetricTrendsView = dynamic(
+  () => import("@/components/SingleMetricTrendsView").then((mod) => mod.SingleMetricTrendsView),
   {
     ssr: false,
     loading: () => (
       <div className="h-64 flex items-center justify-center text-xs text-[var(--text-muted)] animate-pulse">
-        Loading trend chart...
+        Loading markers...
+      </div>
+    ),
+  }
+);
+
+const SettingsView = dynamic(
+  () => import("@/components/SettingsView").then((mod) => mod.SettingsView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 flex items-center justify-center text-xs text-[var(--text-muted)] animate-pulse">
+        Loading settings...
       </div>
     ),
   }
@@ -82,17 +104,10 @@ const ManualEntryModal = dynamic(
   { ssr: false }
 );
 
-const CATEGORY_ORDER: MetricCategory[] = [
-  "Blood",
-  "Lipids",
-  "Sugar",
-  "Thyroid",
-  "Liver",
-  "Kidney",
-  "Vitamins",
-  "Hormones",
-  "Other",
-];
+const AuthModal = dynamic(
+  () => import("@/components/AuthModal").then((mod) => mod.AuthModal),
+  { ssr: false }
+);
 
 export type TrendsSubMode = "single" | "compare" | "overlay";
 
@@ -100,45 +115,57 @@ export default function GulaApp() {
   const [activeTab, setActiveTab] = useState<NavTab>("home");
   const [reports, setReports] = useState<Report[]>([]);
   const [summaries, setSummaries] = useState<LatestResultSummary[]>([]);
+  const [resultsByReportId, setResultsByReportId] = useState<Record<number, ResultWithDate[]>>({});
+  const [allHistoryByMetric, setAllHistoryByMetric] = useState<Record<string, ResultWithDate[]>>({});
   const [selectedKey, setSelectedKey] = useState<string>("glucose_fasting");
-  const [selectedHistory, setSelectedHistory] = useState<ResultWithDate[]>([]);
   const [trendsMode, setTrendsMode] = useState<TrendsSubMode>("single");
   const [isLoading, setIsLoading] = useState(true);
+
+  // Persisted session-only Homepage state (kept across tabs & card clicks; resets on close/hard refresh)
+  const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
+  const [homeFilters, setHomeFilters] = useState<Set<HomeFilterType>>(new Set(["all"]));
+  const [collapsedHomePanels, setCollapsedHomePanels] = useState<Set<string>>(new Set());
 
   // Metric Detail Modal State
   const [detailSummary, setDetailSummary] = useState<LatestResultSummary | null>(null);
   const [detailHistory, setDetailHistory] = useState<ResultWithDate[]>([]);
+  const [detailIsLatestReport, setDetailIsLatestReport] = useState<boolean>(true);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  // Upload & Manual Modals
+  // Upload, Manual & Auth Modals
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Load all active data from Dexie IndexedDB
+  // Single-pass load from Dexie IndexedDB — independent of selectedKey so clicking cards never reloads DB
   const loadData = useCallback(async () => {
     try {
       await migrateFromLegacyDatabase();
-      const activeReports = await getActiveReports();
-      setReports(activeReports);
+      const data = await getDashboardData();
+      setReports(data.reports);
+      setSummaries(data.allSummaries);
+      setResultsByReportId(data.resultsByReportId);
+      setAllHistoryByMetric(data.allHistoryByMetric);
 
-      const latestSummaries = await getLatestResults();
-      setSummaries(latestSummaries);
-
-      if (latestSummaries.length > 0) {
-        const exists = latestSummaries.some((s) => s.metricKey === selectedKey);
-        const targetKey = exists ? selectedKey : latestSummaries[0].metricKey;
-        setSelectedKey(targetKey);
-        const history = await getHistory(targetKey);
-        setSelectedHistory(history);
-      } else {
-        setSelectedHistory([]);
+      if (data.allSummaries.length > 0) {
+        setSelectedKey((prev) =>
+          data.allSummaries.some((s) => s.metricKey === prev)
+            ? prev
+            : data.allSummaries[0].metricKey
+        );
       }
+
+      // Reset selectedReportId only if that report was undone/deleted
+      setSelectedReportId((prev) => {
+        if (prev === null) return null;
+        return data.reports.some((r) => r.id === prev) ? prev : null;
+      });
     } catch (err) {
       console.error("Error loading data from IndexedDB:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedKey]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -146,101 +173,110 @@ export default function GulaApp() {
     return cleanup;
   }, [loadData]);
 
-  // Open Metric Detail Modal
-  const handleOpenDetail = useCallback(async (summary: LatestResultSummary) => {
-    setDetailSummary(summary);
-    setSelectedKey(summary.metricKey);
-    const history = await getHistory(summary.metricKey);
-    setDetailHistory(history);
-    setIsDetailOpen(true);
+  // Active report selected on Homepage (defaults to latest report)
+  const selectedReport = useMemo(() => {
+    if (reports.length === 0) return null;
+    if (selectedReportId !== null) {
+      const found = reports.find((r) => r.id === selectedReportId);
+      if (found) return found;
+    }
+    return reports[0];
+  }, [reports, selectedReportId]);
+
+  const isSelectedLatest = Boolean(
+    selectedReport && reports.length > 0 && selectedReport.id === reports[0].id
+  );
+
+  // Scoped cards for the selected Homepage report (0ms in-memory derivation)
+  const homeSummaries = useMemo(() => {
+    if (!selectedReport) return [];
+    return buildReportScopedSummaries(
+      selectedReport,
+      reports,
+      resultsByReportId,
+      allHistoryByMetric
+    );
+  }, [selectedReport, reports, resultsByReportId, allHistoryByMetric]);
+
+  // Open Metric Detail Modal instantaneously from cached history
+  const handleOpenDetail = useCallback(
+    (summary: LatestResultSummary, fromHome = false) => {
+      setDetailSummary(summary);
+      setSelectedKey(summary.metricKey);
+      setDetailIsLatestReport(fromHome ? isSelectedLatest : true);
+      setDetailHistory(
+        summary.history ||
+          allHistoryByMetric[summary.metricKey] ||
+          [summary.latestResult]
+      );
+      setIsDetailOpen(true);
+    },
+    [allHistoryByMetric, isSelectedLatest]
+  );
+
+  // Homepage filter checkboxes (All, Out of range, Within range)
+  const handleToggleHomeFilter = useCallback((filter: HomeFilterType) => {
+    setHomeFilters((prev) => {
+      if (filter === "all") return new Set(["all"]);
+      const next = new Set(prev);
+      next.delete("all");
+      if (next.has(filter)) {
+        next.delete(filter);
+      } else {
+        next.add(filter);
+      }
+      if (next.size === 0 || next.size === 2) {
+        return new Set(["all"]);
+      }
+      return next;
+    });
   }, []);
 
-  // Summary strip statistics: Total tests, In range, Needs attention
-  const stats = useMemo(() => {
-    let inRange = 0;
-    let needsAttention = 0;
-
-    for (const s of summaries) {
-      if (s.latestResult.flag === "normal") {
-        inRange++;
+  // Homepage accordion panel toggle
+  const handleToggleHomePanel = useCallback((panelName: string) => {
+    setCollapsedHomePanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(panelName)) {
+        next.delete(panelName);
       } else {
-        needsAttention++;
+        next.add(panelName);
       }
-    }
+      return next;
+    });
+  }, []);
 
-    return {
-      total: summaries.length,
-      inRange,
-      needsAttention,
-    };
-  }, [summaries]);
-
-  // Out-of-range metrics for "Needs attention" section
-  const needsAttentionSummaries = useMemo(() => {
-    return summaries.filter((s) => s.latestResult.flag !== "normal");
-  }, [summaries]);
-
-  // Group summaries by category in canonical clinical order
-  const categoryGroups = useMemo(() => {
-    const map = new Map<MetricCategory, LatestResultSummary[]>();
-
-    for (const s of summaries) {
-      const cat = s.category || "Other";
-      if (!map.has(cat)) {
-        map.set(cat, []);
-      }
-      map.get(cat)!.push(s);
-    }
-
-    const groups: { category: MetricCategory; items: LatestResultSummary[] }[] = [];
-
-    for (const cat of CATEGORY_ORDER) {
-      if (map.has(cat) && map.get(cat)!.length > 0) {
-        groups.push({ category: cat, items: map.get(cat)! });
-      }
-    }
-
-    // Add any category not explicitly in CATEGORY_ORDER
-    for (const [cat, items] of map.entries()) {
-      if (!CATEGORY_ORDER.includes(cat) && items.length > 0) {
-        groups.push({ category: cat, items });
-      }
-    }
-
-    return groups;
-  }, [summaries]);
-
-  // All historical records map for multi-metric overlay
-  const allHistoryMap = useMemo(() => {
-    const map: Record<string, ResultWithDate[]> = {};
-    for (const s of summaries) {
-      if (s.history) {
-        map[s.metricKey] = s.history;
-      }
-    }
-    return map;
-  }, [summaries]);
-
-  const latestReportDate = reports.length > 0 ? reports[0].reportDate : null;
-
-  // ── Add report dropdown state ──────────────────────────────
+  // ── Header menus: Report Selector & Add Report ─────────────
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const addMenuRef = React.useRef<HTMLDivElement>(null);
+  const [reportMenuOpen, setReportMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  const reportMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handleMouseDown = (e: MouseEvent) => {
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
         setAddMenuOpen(false);
       }
+      if (reportMenuRef.current && !reportMenuRef.current.contains(e.target as Node)) {
+        setReportMenuOpen(false);
+      }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAddMenuOpen(false);
+        setReportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   // ── Sticky header scroll-border ────────────────────────────
   const [scrolled, setScrolled] = useState(false);
-  const mainRef = React.useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const el = mainRef.current;
@@ -251,11 +287,14 @@ export default function GulaApp() {
   }, []);
 
   // ── Trends sub-mode segmented options ──────────────────────
-  const trendsOptions = [
-    { value: "single" as TrendsSubMode, label: "Single metric", icon: <ChartIcon className="w-3.5 h-3.5" /> },
-    { value: "compare" as TrendsSubMode, label: "Compare", icon: <GitCompare className="w-3.5 h-3.5" /> },
-    { value: "overlay" as TrendsSubMode, label: "Overlay", icon: <Layers className="w-3.5 h-3.5" /> },
-  ];
+  const trendsOptions = useMemo(
+    () => [
+      { value: "single" as TrendsSubMode, label: "Single metric", icon: <ChartIcon className="w-3.5 h-3.5" /> },
+      { value: "compare" as TrendsSubMode, label: "Compare", icon: <GitCompare className="w-3.5 h-3.5" /> },
+      { value: "overlay" as TrendsSubMode, label: "Overlay", icon: <Layers className="w-3.5 h-3.5" /> },
+    ],
+    []
+  );
 
   return (
     <div className="flex h-screen bg-[var(--bg-secondary)] overflow-hidden">
@@ -267,10 +306,13 @@ export default function GulaApp() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onOpenUpload={() => setIsUploadOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        markersCount={summaries.length}
+        reportsCount={reports.length}
       />
 
       {/* Main scroll area */}
-      <main ref={mainRef} className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-20 md:pb-8">
+      <main ref={mainRef} className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-20 md:pb-8 dark-ambient-bg">
 
         {/* ── Sticky top header ──────────────────────────────── */}
         <header
@@ -282,7 +324,7 @@ export default function GulaApp() {
               : "bg-transparent border-b border-transparent"
           )}
         >
-          <PageContainer className="flex items-center justify-between py-3.5 gap-4">
+          <PageContainer className="flex items-center justify-between py-3.5 gap-3">
             {/* Title */}
             <div className="min-w-0">
               <h1 className="text-[15px] font-semibold tracking-tight text-[var(--text-primary)] leading-tight">
@@ -290,10 +332,10 @@ export default function GulaApp() {
                 {activeTab === "trends" && "Trends"}
                 {activeTab === "settings" && "Settings"}
               </h1>
-              <p className="text-[11.5px] text-[var(--text-faint)] leading-snug mt-0.5">
+              <p className="text-[11.5px] text-[var(--text-faint)] leading-snug mt-0.5 truncate">
                 {activeTab === "home" && (
-                  latestReportDate
-                    ? `Last report · ${formatDate(latestReportDate)}`
+                  selectedReport
+                    ? `${isSelectedLatest ? "Latest report" : cleanReportFileName(selectedReport.fileName)} · ${formatDate(selectedReport.reportDate)}`
                     : "No reports yet"
                 )}
                 {activeTab === "trends" && (
@@ -303,57 +345,159 @@ export default function GulaApp() {
               </p>
             </div>
 
-            {/* ONE primary action: "Add report" with dropdown */}
+            {/* Header actions */}
             {activeTab !== "settings" && (
-              <div ref={addMenuRef} className="relative shrink-0">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setAddMenuOpen((o) => !o)}
-                  className="gap-1.5"
-                >
-                  <Plus className="w-3 h-3 stroke-[2.5]" />
-                  <span>Add</span>
-                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-[100ms]", addMenuOpen && "rotate-180")} />
-                </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Report Switcher Button (left of Add button on Home) */}
+                {activeTab === "home" && selectedReport && (
+                  <div ref={reportMenuRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setReportMenuOpen((o) => !o)}
+                      aria-haspopup="listbox"
+                      aria-expanded={reportMenuOpen}
+                      aria-label={`Select report, currently ${getReportButtonLabel(selectedReport, isSelectedLatest)} from ${formatDate(selectedReport.reportDate)}`}
+                      className={cn(
+                        "inline-flex items-center gap-2 px-2.5 py-1 rounded-lg",
+                        "bg-[var(--bg-card)] border border-[var(--border-subtle)]",
+                        "hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-subtle)]/60",
+                        "shadow-[var(--shadow-sm)] transition-all duration-[100ms] ease-out",
+                        "cursor-pointer select-none",
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                      )}
+                    >
+                      <FileText className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
+                      <span className="flex flex-col items-start text-left min-w-0">
+                        <span className="text-[11.5px] font-medium text-[var(--text-primary)] leading-tight truncate max-w-[110px] sm:max-w-[150px]">
+                          {getReportButtonLabel(selectedReport, isSelectedLatest)}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-faint)] tabular-nums leading-tight mt-0.5">
+                          {formatDate(selectedReport.reportDate)}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "w-3 h-3 text-[var(--text-faint)] shrink-0 transition-transform duration-[100ms]",
+                          reportMenuOpen && "rotate-180"
+                        )}
+                      />
+                    </button>
 
-                {/* Dropdown menu */}
-                {addMenuOpen && (
-                  <div
-                    className={cn(
-                      "absolute right-0 top-full mt-1.5 z-50",
-                      "min-w-[158px] rounded-xl p-1",
-                      "bg-[var(--bg-card)] border border-[var(--border-strong)]",
-                      "shadow-[var(--shadow-lg)]",
-                      "animate-in fade-in zoom-in-95 duration-[100ms]"
+                    {reportMenuOpen && (
+                      <div
+                        role="listbox"
+                        aria-label="Uploaded reports"
+                        className={cn(
+                          "absolute right-0 top-full mt-1.5 z-50",
+                          "min-w-[230px] max-w-[290px] max-h-[320px] overflow-y-auto rounded-xl p-1",
+                          "bg-[var(--bg-card)] border border-[var(--border-strong)]",
+                          "shadow-[var(--shadow-lg)]",
+                          "animate-in fade-in zoom-in-95 duration-[100ms]"
+                        )}
+                      >
+                        <div className="px-2.5 py-1.5 text-[10.5px] font-medium text-[var(--text-faint)] uppercase tracking-wider">
+                          Switch report
+                        </div>
+                        {reports.map((rep, idx) => {
+                          const isCurrent = rep.id === selectedReport.id;
+                          const isLatest = idx === 0;
+                          const markerCount = rep.id != null ? (resultsByReportId[rep.id]?.length ?? 0) : 0;
+                          const label = rep.labName?.trim() || cleanReportFileName(rep.fileName);
+
+                          return (
+                            <button
+                              key={rep.id ?? idx}
+                              type="button"
+                              role="option"
+                              aria-selected={isCurrent}
+                              onClick={() => {
+                                setSelectedReportId(isLatest ? null : (rep.id ?? null));
+                                setReportMenuOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-lg text-left",
+                                "transition-colors duration-[80ms] cursor-pointer select-none",
+                                isCurrent
+                                  ? "bg-[var(--accent-subtle)] text-[var(--text-primary)]"
+                                  : "hover:bg-[var(--bg-hover)] text-[var(--text-primary)]"
+                              )}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[12.5px] font-medium truncate">
+                                    {label}
+                                  </span>
+                                  {isLatest && (
+                                    <span className="text-[10px] font-semibold px-1.5 py-px rounded-full bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] text-[var(--accent)] shrink-0">
+                                      Latest
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-[var(--text-faint)] tabular-nums mt-0.5">
+                                  {formatDate(rep.reportDate)} · {markerCount} {markerCount === 1 ? "marker" : "markers"}
+                                </div>
+                              </div>
+                              {isCurrent && (
+                                <Check className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
-                  >
-                    <button
-                      className={cn(
-                        "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg",
-                        "text-[12.5px] text-[var(--text-primary)] font-medium tracking-tight",
-                        "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
-                        "cursor-pointer select-none text-left",
-                      )}
-                      onClick={() => { setAddMenuOpen(false); setIsUploadOpen(true); }}
-                    >
-                      <Upload className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
-                      Upload PDF
-                    </button>
-                    <button
-                      className={cn(
-                        "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg",
-                        "text-[12.5px] text-[var(--text-primary)] font-medium tracking-tight",
-                        "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
-                        "cursor-pointer select-none text-left",
-                      )}
-                      onClick={() => { setAddMenuOpen(false); setIsManualOpen(true); }}
-                    >
-                      <FilePlus className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
-                      Enter manually
-                    </button>
                   </div>
                 )}
+
+                {/* Primary action: Add */}
+                <div ref={addMenuRef} className="relative">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setAddMenuOpen((o) => !o)}
+                    className="gap-1.5 h-9"
+                  >
+                    <Plus className="w-3 h-3 stroke-[2.5]" />
+                    <span>Add</span>
+                    <ChevronDown className={cn("w-3 h-3 transition-transform duration-[100ms]", addMenuOpen && "rotate-180")} />
+                  </Button>
+
+                  {addMenuOpen && (
+                    <div
+                      className={cn(
+                        "absolute right-0 top-full mt-1.5 z-50",
+                        "min-w-[158px] rounded-xl p-1",
+                        "bg-[var(--bg-card)] border border-[var(--border-strong)]",
+                        "shadow-[var(--shadow-lg)]",
+                        "animate-in fade-in zoom-in-95 duration-[100ms]"
+                      )}
+                    >
+                      <button
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg",
+                          "text-[12.5px] text-[var(--text-primary)] font-medium tracking-tight",
+                          "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
+                          "cursor-pointer select-none text-left",
+                        )}
+                        onClick={() => { setAddMenuOpen(false); setIsUploadOpen(true); }}
+                      >
+                        <Upload className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
+                        Upload PDF
+                      </button>
+                      <button
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg",
+                          "text-[12.5px] text-[var(--text-primary)] font-medium tracking-tight",
+                          "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
+                          "cursor-pointer select-none text-left",
+                        )}
+                        onClick={() => { setAddMenuOpen(false); setIsManualOpen(true); }}
+                      >
+                        <FilePlus className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
+                        Enter manually
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </PageContainer>
@@ -367,101 +511,15 @@ export default function GulaApp() {
             <ErrorBoundary fallbackTitle="Couldn't load dashboard">
               {isLoading && summaries.length === 0 ? (
                 <DashboardSkeleton />
-              ) : summaries.length > 0 ? (
-                <div className="space-y-7 animate-fade-up">
-                  {/* Summary strip */}
-                  <div className="grid grid-cols-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-[var(--shadow-sm)] overflow-hidden">
-                    <div className="flex flex-col px-4 sm:px-5 py-4 gap-1">
-                      <span className="text-[26px] font-semibold leading-none tabular-nums tracking-tight text-[var(--text-primary)]">
-                        {stats.total}
-                      </span>
-                      <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-                        Markers
-                      </span>
-                    </div>
-                    <div className="flex flex-col px-4 sm:px-5 py-4 gap-1 border-l border-[var(--border-subtle)]">
-                      <span className="text-[26px] font-semibold leading-none tabular-nums tracking-tight text-[var(--status-normal-text)]">
-                        {stats.inRange}
-                      </span>
-                      <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-                        In range
-                      </span>
-                    </div>
-                    <div className="flex flex-col px-4 sm:px-5 py-4 gap-1 border-l border-[var(--border-subtle)]">
-                      {stats.needsAttention === 0 ? (
-                        <>
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-[var(--status-normal-dot)] shrink-0" />
-                            <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-tight">All good</span>
-                          </span>
-                          <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-                            All in range
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span
-                            className="text-[26px] font-semibold leading-none tabular-nums tracking-tight"
-                            style={{ color: stats.needsAttention > 2 ? "var(--status-abnormal-text)" : "var(--status-borderline-text)" }}
-                          >
-                            {stats.needsAttention}
-                          </span>
-                          <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-                            Need attention
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Needs attention */}
-                  {needsAttentionSummaries.length > 0 && (
-                    <section className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-[13px] font-semibold tracking-tight text-[var(--text-primary)]">
-                          Needs attention
-                        </h2>
-                        <span className="text-[11.5px] text-[var(--text-faint)] tabular-nums">
-                          {needsAttentionSummaries.length}
-                        </span>
-                      </div>
-                      <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))] auto-rows-fr">
-                        {needsAttentionSummaries.map((summary) => (
-                          <BiomarkerCard
-                            key={`attention-${summary.metricKey}`}
-                            summary={summary}
-                            onClick={() => handleOpenDetail(summary)}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* Category sections */}
-                  <div className="space-y-7">
-                    {categoryGroups.map(({ category, items }) => (
-                      <section key={category} className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-[13px] font-semibold tracking-tight text-[var(--text-primary)]">
-                            {category}
-                          </h3>
-                          <span className="text-[11.5px] text-[var(--text-faint)] tabular-nums">
-                            {items.length}
-                          </span>
-                        </div>
-                        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))] auto-rows-fr">
-                          {items.map((summary) => (
-                            <BiomarkerCard
-                              key={summary.metricKey}
-                              summary={summary}
-                              onClick={() => handleOpenDetail(summary)}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-                </div>
+              ) : selectedReport ? (
+                <HomeDashboardView
+                  summaries={homeSummaries}
+                  selectedFilters={homeFilters}
+                  onToggleFilter={handleToggleHomeFilter}
+                  collapsedPanels={collapsedHomePanels}
+                  onTogglePanel={handleToggleHomePanel}
+                  onOpenDetail={(s) => handleOpenDetail(s, true)}
+                />
               ) : (
                 <EmptyState
                   title="No reports yet"
@@ -472,6 +530,7 @@ export default function GulaApp() {
                   secondaryActionType="link"
                   onSecondaryAction={async () => {
                     await loadDemoData();
+                    setSelectedReportId(null);
                     await loadData();
                     toast("Loaded demo checkup reports", "success");
                   }}
@@ -486,7 +545,6 @@ export default function GulaApp() {
               <div className="space-y-6">
                 {summaries.length > 0 ? (
                   <>
-                    {/* Shared segmented control — Overlay / Compare / Single */}
                     <div className="flex items-center justify-between flex-wrap gap-3">
                       <SegmentedControl
                         options={trendsOptions}
@@ -502,7 +560,7 @@ export default function GulaApp() {
                       <SingleMetricTrendsView
                         summaries={summaries}
                         reports={reports}
-                        onOpenDetail={handleOpenDetail}
+                        onOpenDetail={(s) => handleOpenDetail(s, false)}
                       />
                     )}
 
@@ -513,11 +571,10 @@ export default function GulaApp() {
                     {trendsMode === "overlay" && (
                       <MultiMetricTrendChart
                         summaries={summaries}
-                        allHistory={allHistoryMap}
+                        allHistory={allHistoryByMetric}
                       />
                     )}
 
-                    {/* All tracked biomarkers in compare and overlay modes */}
                     {trendsMode !== "single" && (
                       <div className="pt-2">
                         <div className="flex items-center gap-2 mb-3">
@@ -534,7 +591,7 @@ export default function GulaApp() {
                               key={s.metricKey}
                               summary={s}
                               isSelected={s.metricKey === selectedKey}
-                              onClick={() => handleOpenDetail(s)}
+                              onClick={() => handleOpenDetail(s, false)}
                             />
                           ))}
                         </div>
@@ -551,6 +608,7 @@ export default function GulaApp() {
                     secondaryActionType="link"
                     onSecondaryAction={async () => {
                       await loadDemoData();
+                      setSelectedReportId(null);
                       await loadData();
                       toast("Loaded demo checkup reports", "success");
                     }}
@@ -576,6 +634,7 @@ export default function GulaApp() {
       <MetricDetailModal
         summary={detailSummary}
         history={detailHistory}
+        isLatestReport={detailIsLatestReport}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
       />
@@ -584,6 +643,7 @@ export default function GulaApp() {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onSuccess={() => {
+          setSelectedReportId(null);
           loadData();
           setActiveTab("home");
           syncAll().catch((err) => console.error("Post-upload sync error:", err));
@@ -594,6 +654,7 @@ export default function GulaApp() {
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
         onSuccess={() => {
+          setSelectedReportId(null);
           loadData();
           setActiveTab("home");
           toast("Entry saved", "success");
@@ -602,6 +663,12 @@ export default function GulaApp() {
       />
 
       <SyncMergeModal onComplete={() => loadData()} />
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSyncComplete={() => loadData()}
+      />
     </div>
   );
 }

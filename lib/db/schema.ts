@@ -83,6 +83,7 @@ export interface LatestResultSummary {
   previousResult?: ResultWithDate;
   changeValue?: number;
   changePercent?: number;
+  comparisonRelation?: "since" | "vs";
   historyCount: number;
   sparklineValues?: number[];
   history?: ResultWithDate[];

@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/utils/date";
 interface BiomarkerCardProps {
   summary: LatestResultSummary;
   isSelected?: boolean;
+  hideSinglePointTrend?: boolean;
   onClick: () => void;
   className?: string;
 }
@@ -37,9 +38,10 @@ export function getShortName(displayName: string): string {
   return displayName;
 }
 
-export function BiomarkerCard({
+export const BiomarkerCard = React.memo(function BiomarkerCard({
   summary,
   isSelected,
+  hideSinglePointTrend = false,
   onClick,
   className,
 }: BiomarkerCardProps) {
@@ -47,6 +49,7 @@ export function BiomarkerCard({
     latestResult,
     previousResult,
     changeValue,
+    comparisonRelation,
     displayName,
     sparklineValues = [],
   } = summary;
@@ -54,6 +57,10 @@ export function BiomarkerCard({
   const shortName = getShortName(displayName);
   const isAbnormal = latestResult.flag !== "normal";
   const isBorderline = latestResult.flag === "borderline";
+  const relationWord = comparisonRelation === "vs" ? "vs" : "since";
+
+  const hasMultiPointTrend = sparklineValues.length > 1 || Boolean(previousResult);
+  const shouldShowSparkline = hideSinglePointTrend ? hasMultiPointTrend : true;
 
   const renderDelta = () => {
     if (!previousResult || changeValue === undefined) {
@@ -64,11 +71,20 @@ export function BiomarkerCard({
       );
     }
 
+    const prevDate = previousResult.reportDate
+      ? formatDate(previousResult.reportDate)
+      : "last report";
+
     if (changeValue === 0) {
       return (
-        <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-faint)]">
+        <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-faint)] tracking-tight">
           <Minus className="w-3 h-3 shrink-0" />
-          <span>No change</span>
+          <span>
+            No change
+            {previousResult.reportDate && (
+              <span className="ml-1">{relationWord} {prevDate}</span>
+            )}
+          </span>
         </span>
       );
     }
@@ -76,10 +92,6 @@ export function BiomarkerCard({
     const absChange = Math.abs(changeValue);
     const direction = changeValue > 0 ? "up" : "down";
     const ArrowIcon = changeValue > 0 ? ArrowUp : ArrowDown;
-
-    const prevDate = previousResult.reportDate
-      ? formatDate(previousResult.reportDate)
-      : "last report";
 
     const deltaColorClass = isAbnormal
       ? isBorderline
@@ -92,7 +104,7 @@ export function BiomarkerCard({
         <ArrowIcon className={cn("w-2.5 h-2.5 shrink-0", deltaColorClass)} />
         <span>
           {direction} {absChange}
-          <span className="text-[var(--text-faint)] ml-1">since {prevDate}</span>
+          <span className="text-[var(--text-faint)] ml-1">{relationWord} {prevDate}</span>
         </span>
       </span>
     );
@@ -122,7 +134,7 @@ export function BiomarkerCard({
       className={cn(
         "group relative p-4 rounded-xl cursor-pointer text-left select-none",
         "h-full flex flex-col justify-between gap-3",
-        "bg-[var(--bg-card)] border",
+        "bg-[var(--bg-card)] home-glass-card border",
         "transition-all duration-[150ms] ease-out",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         isSelected
@@ -148,7 +160,7 @@ export function BiomarkerCard({
         )}
       </div>
 
-      {/* Row 2: Value + unit + sparkline */}
+      {/* Row 2: Value + unit + sparkline (hidden when test is only in 1 report on homepage) */}
       <div className="flex items-end justify-between gap-2">
         <div className="flex items-baseline gap-1 tabular-nums">
           <span className="text-[26px] font-semibold leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
@@ -159,15 +171,17 @@ export function BiomarkerCard({
           </span>
         </div>
 
-        <Sparkline
-          values={sparklineValues.length > 0 ? sparklineValues : [latestResult.value]}
-          flag={latestResult.flag}
-          width={56}
-          height={22}
-        />
+        {shouldShowSparkline && (
+          <Sparkline
+            values={sparklineValues.length > 0 ? sparklineValues : [latestResult.value]}
+            flag={latestResult.flag}
+            width={56}
+            height={22}
+          />
+        )}
       </div>
 
-      {/* Row 3: Delta */}
+      {/* Row 3: Dynamic Delta */}
       <div className="flex items-center">
         {renderDelta()}
       </div>
@@ -183,4 +197,4 @@ export function BiomarkerCard({
       />
     </div>
   );
-}
+});

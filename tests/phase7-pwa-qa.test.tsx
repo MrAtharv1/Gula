@@ -57,7 +57,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
       expect(fs.existsSync(manifestPath)).toBe(true);
 
       const manifestContent = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-      expect(manifestContent.name).toBe("Gula — Private Health Dashboard");
+      expect(manifestContent.name).toBe("GULA : Your Privacy Matters");
       expect(manifestContent.short_name).toBe("Gula");
       expect(manifestContent.display).toBe("standalone");
       expect(manifestContent.start_url).toBe("/");

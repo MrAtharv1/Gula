@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Modal } from "./ui/Modal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
@@ -11,10 +11,12 @@ import { METRIC_DICTIONARY } from "@/lib/db/metricDictionary";
 import { convertMetricUnit } from "@/lib/db/unitConversion";
 import { ArrowUp, ArrowDown, Calendar, Building2, Info, ArrowLeftRight } from "lucide-react";
 import { formatDate } from "@/lib/utils/date";
+import { cn } from "@/lib/utils/cn";
 
 interface MetricDetailModalProps {
   summary: LatestResultSummary | null;
   history: ResultWithDate[];
+  isLatestReport?: boolean;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -22,6 +24,7 @@ interface MetricDetailModalProps {
 export function MetricDetailModal({
   summary,
   history,
+  isLatestReport = true,
   isOpen,
   onClose,
 }: MetricDetailModalProps) {
@@ -30,12 +33,17 @@ export function MetricDetailModal({
   const latestResult = summary?.latestResult;
   const previousResult = summary?.previousResult;
   const changeValue = summary?.changeValue;
+  const comparisonRelation = summary?.comparisonRelation || "since";
   const displayName = summary?.displayName || "";
   const category = summary?.category || "Other";
   const metricKey = summary?.metricKey || "";
   const dictDef = metricKey ? METRIC_DICTIONARY[metricKey] : undefined;
 
-  // Determine if unit conversion is applicable (e.g. glucose or cholesterol mg/dL <-> mmol/L)
+  // Reset unit conversion toggle whenever a different marker or report opens
+  useEffect(() => {
+    setUseConvertedUnit(false);
+  }, [metricKey, latestResult?.reportId, isOpen]);
+
   const isConvertible = Boolean(
     latestResult &&
       (metricKey.includes("glucose") ||
@@ -51,14 +59,12 @@ export function MetricDetailModal({
     latestResult?.unit.toLowerCase() === "mg/dl" ? "mmol/L" : "mg/dL";
   const targetUnit = useConvertedUnit ? alternateUnit : (latestResult?.unit || "");
 
-  // Converted value
   const displayValue = useMemo(() => {
     if (!latestResult) return 0;
     if (!useConvertedUnit || !isConvertible) return latestResult.value;
     return convertMetricUnit(metricKey, latestResult.value, latestResult.unit, targetUnit).value;
   }, [useConvertedUnit, isConvertible, latestResult?.value, latestResult?.unit, targetUnit, metricKey]);
 
-  // Converted reference bounds
   const displayRefLow = useMemo(() => {
     if (!latestResult || latestResult.refLow === undefined) return undefined;
     if (!useConvertedUnit || !isConvertible) return latestResult.refLow;
@@ -71,7 +77,13 @@ export function MetricDetailModal({
     return convertMetricUnit(metricKey, latestResult.refHigh, latestResult.unit, targetUnit).value;
   }, [useConvertedUnit, isConvertible, latestResult?.refHigh, latestResult?.unit, targetUnit, metricKey]);
 
-  // Converted history for trend chart
+  const displayChangeValue = useMemo(() => {
+    if (changeValue === undefined || !previousResult || !latestResult) return undefined;
+    if (!useConvertedUnit || !isConvertible) return changeValue;
+    const prevConverted = convertMetricUnit(metricKey, previousResult.value, previousResult.unit, targetUnit).value;
+    return Number((displayValue - prevConverted).toFixed(2));
+  }, [changeValue, previousResult, latestResult, useConvertedUnit, isConvertible, metricKey, targetUnit, displayValue]);
+
   const chartHistory = useMemo(() => {
     if (!history) return [];
     if (!useConvertedUnit || !isConvertible) return history;
@@ -101,16 +113,24 @@ export function MetricDetailModal({
       ? "Borderline"
       : "Normal";
 
+  const modalSubtitle = isLatestReport
+    ? `${category} • Latest reading`
+    : `${category} • ${formatDate(latestResult.reportDate)} report`;
+
+  const comparisonDateText = previousResult?.reportDate
+    ? `${comparisonRelation === "vs" ? "vs" : "since"} ${formatDate(previousResult.reportDate)}`
+    : "vs previous";
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={displayName}
-      description={`${category} • Latest reading`}
+      description={modalSubtitle}
       className="max-w-2xl max-h-[90vh] overflow-y-auto"
     >
       <div className="space-y-5 pt-1">
-        {/* Top Metric Header Card */}
+        {/* Top Metric Header Card — dynamic for selected report date */}
         <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -158,7 +178,7 @@ export function MetricDetailModal({
             />
           </div>
 
-          {/* Test Metadata & Change Row */}
+          {/* Test Metadata & Dynamic Change Row */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-subtle)] text-[12px] text-[var(--text-muted)]">
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1">
@@ -173,20 +193,20 @@ export function MetricDetailModal({
               )}
             </div>
 
-            {previousResult && changeValue !== undefined && (
+            {previousResult && displayChangeValue !== undefined && (
               <div className="inline-flex items-center gap-1 font-medium text-[var(--text-primary)] tabular-nums">
-                {changeValue > 0 ? (
+                {displayChangeValue > 0 ? (
                   <>
                     <ArrowUp className="w-3 h-3 text-[var(--status-abnormal-dot)]" />
-                    <span>+{Math.abs(changeValue)} vs previous</span>
+                    <span>+{Math.abs(displayChangeValue)} {comparisonDateText}</span>
                   </>
-                ) : changeValue < 0 ? (
+                ) : displayChangeValue < 0 ? (
                   <>
                     <ArrowDown className="w-3 h-3 text-[var(--status-normal-dot)]" />
-                    <span>-{Math.abs(changeValue)} vs previous</span>
+                    <span>-{Math.abs(displayChangeValue)} {comparisonDateText}</span>
                   </>
                 ) : (
-                  <span>No change vs previous</span>
+                  <span>No change {comparisonDateText}</span>
                 )}
               </div>
             )}
@@ -203,7 +223,7 @@ export function MetricDetailModal({
           </div>
         )}
 
-        {/* Interactive Trend Chart */}
+        {/* Interactive Trend Chart — full longitudinal view, consistent across every dated report */}
         <div>
           <h4 className="text-[12px] font-medium text-[var(--text-muted)] mb-2.5">
             Historical trend ({chartHistory.length} {chartHistory.length === 1 ? "record" : "records"})
@@ -233,10 +253,18 @@ export function MetricDetailModal({
                     : record.flag === "borderline"
                     ? "Borderline"
                     : "Normal";
+                const isSelectedRow =
+                  !isLatestReport &&
+                  record.reportId === latestResult.reportId &&
+                  record.reportDate === latestResult.reportDate;
+
                 return (
                   <div
-                    key={record.id}
-                    className="px-3.5 py-2.5 flex items-center justify-between text-[12px]"
+                    key={record.id ?? `${record.reportId}-${record.reportDate}`}
+                    className={cn(
+                      "px-3.5 py-2.5 flex items-center justify-between text-[12px]",
+                      isSelectedRow && "bg-[var(--accent-subtle)]"
+                    )}
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-[var(--text-primary)]">

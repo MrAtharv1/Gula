@@ -24,6 +24,7 @@ import {
   MetricDefinition,
 } from "@/lib/db/schema";
 import { METRIC_DICTIONARY } from "@/lib/db/metricDictionary";
+import { CATEGORY_PANEL_NAMES } from "@/lib/utils/reportView";
 
 export type TrendFilterType =
   | "all"
@@ -37,18 +38,6 @@ export interface BiomarkerFilterClassification {
   isAttentionWorsen: boolean;
   needsAttention: boolean;
 }
-
-const CATEGORY_PANEL_NAMES: Record<string, string> = {
-  Liver: "Liver Function",
-  Sugar: "Metabolic Panel",
-  Lipids: "Lipid Panel",
-  Blood: "Complete Blood Count",
-  Kidney: "Kidney Function",
-  Thyroid: "Thyroid Panel",
-  Vitamins: "Vitamins & Minerals",
-  Hormones: "Hormone Panel",
-  Other: "General Biomarkers",
-};
 
 /**
  * Calculates absolute distance of a result from the healthy normal reference range.
@@ -330,7 +319,7 @@ function formatFullDate(dateStr: string): string {
  * - Visual dashed guide for normal reference range
  * - Dynamic dot shading from light red to dark red (out-of-range) and light orange to dark orange (borderline)
  */
-export function TrendSparkline({
+export const TrendSparkline = React.memo(function TrendSparkline({
   history,
   refLow,
   refHigh,
@@ -488,7 +477,7 @@ export function TrendSparkline({
       ))}
     </svg>
   );
-}
+});
 
 /**
  * Result Pill with dynamic gradient shading:
@@ -496,7 +485,11 @@ export function TrendSparkline({
  * - Light to dark orange for borderline readings
  * - Emerald green for normal readings
  */
-export function ResultPill({ result }: { result?: ResultWithDate }) {
+export const ResultPill = React.memo(function ResultPill({
+  result,
+}: {
+  result?: ResultWithDate;
+}) {
   if (!result) {
     return (
       <span className="text-[var(--text-muted)] text-[13px] font-medium">-</span>
@@ -530,7 +523,7 @@ export function ResultPill({ result }: { result?: ResultWithDate }) {
       <span className="text-[10px] opacity-80">{result.unit}</span>
     </span>
   );
-}
+});
 
 interface SingleMetricTrendsViewProps {
   summaries: LatestResultSummary[];

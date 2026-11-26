@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Geist, Karla } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
@@ -9,17 +9,24 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+const karla = Karla({
+  variable: "--font-karla",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
 export const metadata: Metadata = {
-  title: "Gula — Private, Local Health Dashboard",
+  title: "GULA : Your Privacy Matters",
   description: "Turn health test report PDFs into a clean, trackable personal health dashboard. 100% private and local.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Gula",
+    title: "GULA : Your Privacy Matters",
   },
   icons: {
-    icon: "/icons/icon-192x192.png",
+    icon: "/logo.png",
+    shortcut: "/logo.png",
     apple: "/icons/icon-192x192.png",
   },
 };
@@ -51,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} h-full antialiased`}>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${karla.variable} h-full antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

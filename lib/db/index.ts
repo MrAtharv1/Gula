@@ -37,18 +37,25 @@ export const HealthTrackDatabase = GulaDatabase;
 
 export const db = new GulaDatabase();
 
+let legacyMigrationChecked = false;
+
 /**
  * Migrates data from legacy "HealthTrack_V2_DB" to "Gula_DB" if legacy DB exists,
  * ensuring existing installs and test data are not lost.
+ * Cached per session after first check to avoid repeated Dexie.exists() overhead.
  */
 export async function migrateFromLegacyDatabase(): Promise<{ migrated: boolean; count: number }> {
   if (typeof window === "undefined" && typeof indexedDB === "undefined") {
+    return { migrated: false, count: 0 };
+  }
+  if (legacyMigrationChecked) {
     return { migrated: false, count: 0 };
   }
 
   try {
     const legacyExists = await Dexie.exists(LEGACY_DB_NAME);
     if (!legacyExists) {
+      legacyMigrationChecked = true;
       return { migrated: false, count: 0 };
     }
 
@@ -90,6 +97,7 @@ export async function migrateFromLegacyDatabase(): Promise<{ migrated: boolean; 
     }
 
     legacyDb.close();
+    legacyMigrationChecked = true;
     return { migrated: true, count: migratedCount };
   } catch (err) {
     console.warn("Legacy database migration skipped/failed:", err);
@@ -127,6 +135,7 @@ export async function addReport(
 
 /**
  * 2. getActiveReports: retrieves all active reports ordered chronologically descending by reportDate
+ * (tie-breaking by uploadedAt descending so newer uploads appear first).
  */
 export async function getActiveReports(): Promise<Report[]> {
   const activeReports = await db.reports
@@ -134,35 +143,64 @@ export async function getActiveReports(): Promise<Report[]> {
     .equals("active")
     .toArray();
 
-  return activeReports.sort(
-    (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
-  );
+  return activeReports.sort((a, b) => {
+    const dateDiff =
+      new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return (b.uploadedAt || 0) - (a.uploadedAt || 0);
+  });
+}
+
+export interface DashboardData {
+  reports: Report[];
+  allSummaries: LatestResultSummary[];
+  resultsByReportId: Record<number, ResultWithDate[]>;
+  allHistoryByMetric: Record<string, ResultWithDate[]>;
 }
 
 /**
- * 3. getLatestResults: returns latest reading per metricKey across all active reports
- * Includes previous result, change value, and change percent.
+ * 2b. getDashboardData: single-pass optimized fetch returning active reports,
+ * longitudinal summaries (for Trends), report-indexed results (for Home report switcher),
+ * and full chronological histories per metric.
  */
-export async function getLatestResults(): Promise<LatestResultSummary[]> {
+export async function getDashboardData(): Promise<DashboardData> {
   const activeReports = await getActiveReports();
-  if (activeReports.length === 0) return [];
+  if (activeReports.length === 0) {
+    return {
+      reports: [],
+      allSummaries: [],
+      resultsByReportId: {},
+      allHistoryByMetric: {},
+    };
+  }
 
-  const activeReportIds = new Set(activeReports.map((r) => r.id!));
+  const activeReportIds = activeReports
+    .map((r) => r.id)
+    .filter((id): id is number => id != null);
   const reportMap = new Map(activeReports.map((r) => [r.id!, r]));
 
-  // Get all results belonging to active reports
-  const allResults = await db.results.toArray();
-  const activeResults = allResults.filter((r) => activeReportIds.has(r.reportId));
+  const activeResults =
+    activeReportIds.length > 0
+      ? await db.results.where("reportId").anyOf(activeReportIds).toArray()
+      : [];
 
-  // Group by metricKey
+  const resultsByReportId: Record<number, ResultWithDate[]> = {};
   const grouped = new Map<string, ResultWithDate[]>();
+
   for (const res of activeResults) {
-    const report = reportMap.get(res.reportId)!;
+    const report = reportMap.get(res.reportId);
+    if (!report) continue;
+
     const resWithDate: ResultWithDate = {
       ...res,
       reportDate: report.reportDate,
       fileName: report.fileName,
     };
+
+    if (!resultsByReportId[res.reportId]) {
+      resultsByReportId[res.reportId] = [];
+    }
+    resultsByReportId[res.reportId].push(resWithDate);
 
     if (!grouped.has(res.metricKey)) {
       grouped.set(res.metricKey, []);
@@ -170,12 +208,13 @@ export async function getLatestResults(): Promise<LatestResultSummary[]> {
     grouped.get(res.metricKey)!.push(resWithDate);
   }
 
-  const summaries: LatestResultSummary[] = [];
+  const allSummaries: LatestResultSummary[] = [];
+  const allHistoryByMetric: Record<string, ResultWithDate[]> = {};
 
   for (const [metricKey, items] of grouped.entries()) {
-    // Sort descending by reportDate to get latest first
     items.sort(
-      (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
+      (a, b) =>
+        new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
     );
 
     const latest = items[0];
@@ -192,14 +231,14 @@ export async function getLatestResults(): Promise<LatestResultSummary[]> {
     }
 
     const dictDef = METRIC_DICTIONARY[metricKey];
-
-    // Chronological ascending items for sparkline and trends
     const chronologicalItems = [...items].sort(
-      (a, b) => new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime()
+      (a, b) =>
+        new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime()
     );
     const sparklineValues = chronologicalItems.map((item) => item.value);
+    allHistoryByMetric[metricKey] = chronologicalItems;
 
-    summaries.push({
+    allSummaries.push({
       metricKey,
       displayName: dictDef?.displayName || latest.displayName,
       category: dictDef?.category || latest.category,
@@ -208,15 +247,15 @@ export async function getLatestResults(): Promise<LatestResultSummary[]> {
       previousResult: previous,
       changeValue,
       changePercent,
+      comparisonRelation: previous ? "since" : undefined,
       historyCount: items.length,
       sparklineValues,
       history: chronologicalItems,
     });
   }
 
-  // Sort summaries: abnormal first (high/low), then borderline, then normal
   const flagWeight = { high: 3, low: 3, borderline: 2, normal: 1 };
-  summaries.sort((a, b) => {
+  allSummaries.sort((a, b) => {
     const diff =
       (flagWeight[b.latestResult.flag] || 0) -
       (flagWeight[a.latestResult.flag] || 0);
@@ -224,7 +263,20 @@ export async function getLatestResults(): Promise<LatestResultSummary[]> {
     return a.displayName.localeCompare(b.displayName);
   });
 
-  return summaries;
+  return {
+    reports: activeReports,
+    allSummaries,
+    resultsByReportId,
+    allHistoryByMetric,
+  };
+}
+
+/**
+ * 3. getLatestResults: returns latest reading per metricKey across all active reports
+ * Includes previous result, change value, and change percent.
+ */
+export async function getLatestResults(): Promise<LatestResultSummary[]> {
+  return (await getDashboardData()).allSummaries;
 }
 
 /**

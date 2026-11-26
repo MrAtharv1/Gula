@@ -4,8 +4,14 @@ import { useThemeStore, type ThemeMode } from "@/lib/store/themeStore";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-/** Full segmented theme toggle — used on the Settings page. */
-export function ThemeToggle({ className }: { className?: string }) {
+/** Full segmented theme toggle — used on Settings page and in compact mode in Sidebar. */
+export function ThemeToggle({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { theme, setTheme } = useThemeStore();
 
   const options: {
@@ -23,7 +29,9 @@ export function ThemeToggle({ className }: { className?: string }) {
       role="radiogroup"
       aria-label="Theme preference"
       className={cn(
-        "inline-flex items-center gap-0.5 p-0.5 rounded-[10px]",
+        compact
+          ? "grid grid-cols-3 w-full gap-0.5 p-0.5 rounded-[9px]"
+          : "inline-flex items-center gap-0.5 p-0.5 rounded-[10px]",
         "bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)]",
         className
       )}
@@ -34,20 +42,24 @@ export function ThemeToggle({ className }: { className?: string }) {
         return (
           <button
             key={opt.mode}
+            type="button"
             role="radio"
             aria-checked={isSelected}
             aria-label={opt.label}
             onClick={() => setTheme(opt.mode)}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg",
-              "text-[13px] font-medium transition-[background-color,color,border-color] duration-[120ms] ease-out",
+              "inline-flex items-center justify-center rounded-lg",
+              compact
+                ? "gap-1 px-1.5 py-1 text-[11.5px]"
+                : "gap-1.5 px-2.5 py-1 text-[13px]",
+              "font-medium transition-all duration-[120ms] ease-out",
               "cursor-pointer select-none border",
               isSelected
-                ? "bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(0,0,0,0.06)] font-semibold"
+                ? "bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[var(--shadow-sm)] font-semibold"
                 : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
             )}
           >
-            <Icon className="w-3.5 h-3.5" />
+            <Icon className={cn(compact ? "w-3 h-3" : "w-3.5 h-3.5")} />
             <span>{opt.label}</span>
           </button>
         );
@@ -56,9 +68,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
-/** Compact single-button theme cycle: Light → Auto → Dark → Light.
- *  Used in the sidebar bottom to avoid overflow. Shows tooltip.
- */
+/** Compact single-button theme cycle: Light → Auto → Dark → Light. */
 export function ThemeIconButton({ className }: { className?: string }) {
   const { theme, setTheme } = useThemeStore();
 
