@@ -30,16 +30,10 @@ const SHORT_NAME_MAP: Record<string, string> = {
   "Total Cholesterol / HDL Ratio": "TC / HDL",
 };
 
-/** Short display names — abbreviations where the metric dict has long names.
- *  Full name shown in tooltip and on the detail page.
- */
 export function getShortName(displayName: string): string {
   if (SHORT_NAME_MAP[displayName]) return SHORT_NAME_MAP[displayName];
-  // Strip parenthetical suffixes like "(ALT)" or "(MCV)" since we show the abbreviation
-  // Pattern: "Long Name (SHORT)" → "SHORT"
   const match = displayName.match(/\(([^)]{2,8})\)$/);
   if (match) return match[1];
-  // Already short (≤12 chars) or no parens
   return displayName;
 }
 
@@ -59,12 +53,12 @@ export function BiomarkerCard({
 
   const shortName = getShortName(displayName);
   const isAbnormal = latestResult.flag !== "normal";
+  const isBorderline = latestResult.flag === "borderline";
 
-  // Delta row — neutral muted text, never colored red/green based on direction; colored only if out of range
   const renderDelta = () => {
     if (!previousResult || changeValue === undefined) {
       return (
-        <span className="text-[12px] text-[var(--text-muted)]">
+        <span className="text-[11.5px] text-[var(--text-faint)] tracking-tight">
           First record
         </span>
       );
@@ -72,7 +66,7 @@ export function BiomarkerCard({
 
     if (changeValue === 0) {
       return (
-        <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)]">
+        <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-faint)]">
           <Minus className="w-3 h-3 shrink-0" />
           <span>No change</span>
         </span>
@@ -83,28 +77,27 @@ export function BiomarkerCard({
     const direction = changeValue > 0 ? "up" : "down";
     const ArrowIcon = changeValue > 0 ? ArrowUp : ArrowDown;
 
-    // Date from previous result if available
     const prevDate = previousResult.reportDate
       ? formatDate(previousResult.reportDate)
       : "last report";
 
     const deltaColorClass = isAbnormal
-      ? latestResult.flag === "borderline"
+      ? isBorderline
         ? "text-[var(--status-borderline-text)]"
         : "text-[var(--status-abnormal-text)]"
-      : "text-[var(--text-muted)]";
+      : "text-[var(--text-faint)]";
 
     return (
-      <span className={cn("inline-flex items-center gap-1 text-[12px] tabular-nums", deltaColorClass)}>
-        <ArrowIcon className={cn("w-3 h-3 shrink-0", deltaColorClass)} />
+      <span className={cn("inline-flex items-center gap-1 text-[11.5px] tabular-nums tracking-tight", deltaColorClass)}>
+        <ArrowIcon className={cn("w-2.5 h-2.5 shrink-0", deltaColorClass)} />
         <span>
-          {direction} {absChange} since {prevDate}
+          {direction} {absChange}
+          <span className="text-[var(--text-faint)] ml-1">since {prevDate}</span>
         </span>
       </span>
     );
   };
 
-  // Status label — sentence case
   const statusLabel =
     latestResult.flag === "high"
       ? "High"
@@ -127,20 +120,25 @@ export function BiomarkerCard({
       }}
       title={displayName}
       className={cn(
-        "group relative p-3.5 rounded-xl bg-[var(--bg-card)] border cursor-pointer text-left select-none",
-        "h-full flex flex-col justify-between gap-2.5",
-        "transition-[border-color] duration-[120ms] ease-out",
+        "group relative p-4 rounded-xl cursor-pointer text-left select-none",
+        "h-full flex flex-col justify-between gap-3",
+        "bg-[var(--bg-card)] border",
+        "transition-all duration-[150ms] ease-out",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         isSelected
-          ? "border-[var(--accent)]"
-          : "border-[var(--border-subtle)] hover:border-[var(--border-hover)]",
+          ? "border-[var(--accent)] shadow-[0_0_0_1px_var(--accent-muted),var(--shadow-sm)]"
+          : [
+              "border-[var(--border-subtle)] shadow-[var(--shadow-sm)]",
+              "hover:border-[var(--border-hover)] hover:shadow-[var(--shadow-md)]",
+              "hover:-translate-y-px",
+            ],
         className
       )}
       aria-label={`${displayName}, ${latestResult.value} ${latestResult.unit}, ${statusLabel}`}
     >
-      {/* Row 1: Short name + status badge (only if abnormal or borderline) */}
+      {/* Row 1: Short name + status badge */}
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[13px] font-medium text-[var(--text-primary)] leading-tight">
+        <span className="text-[13px] font-medium text-[var(--text-secondary)] leading-tight tracking-tight">
           {shortName}
         </span>
         {isAbnormal && (
@@ -153,10 +151,10 @@ export function BiomarkerCard({
       {/* Row 2: Value + unit + sparkline */}
       <div className="flex items-end justify-between gap-2">
         <div className="flex items-baseline gap-1 tabular-nums">
-          <span className="text-[24px] font-semibold leading-none tracking-[-0.01em] text-[var(--text-primary)] tabular-nums">
+          <span className="text-[26px] font-semibold leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
             {latestResult.value}
           </span>
-          <span className="text-[12px] text-[var(--text-muted)] font-normal ml-0.5">
+          <span className="text-[11.5px] text-[var(--text-faint)] font-normal ml-0.5">
             {latestResult.unit}
           </span>
         </div>
@@ -164,17 +162,17 @@ export function BiomarkerCard({
         <Sparkline
           values={sparklineValues.length > 0 ? sparklineValues : [latestResult.value]}
           flag={latestResult.flag}
-          width={60}
-          height={20}
+          width={56}
+          height={22}
         />
       </div>
 
-      {/* Row 3: Delta — neutral muted text */}
+      {/* Row 3: Delta */}
       <div className="flex items-center">
         {renderDelta()}
       </div>
 
-      {/* Row 4: 4px range bar */}
+      {/* Row 4: Range bar */}
       <RangeBar
         value={latestResult.value}
         refLow={latestResult.refLow}

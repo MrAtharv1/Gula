@@ -28,25 +28,26 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center p-8 sm:p-14 text-center rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]",
+        "flex flex-col items-center justify-center p-10 sm:p-16 text-center",
+        "rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-[var(--shadow-sm)]",
         className
       )}
     >
       {icon && (
-        <div className="w-12 h-12 rounded-xl bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-muted)] mb-3">
+        <div className="w-11 h-11 rounded-xl bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-faint)] mb-4">
           {icon}
         </div>
       )}
-      <h3 className="text-base sm:text-lg font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+      <h3 className="text-[15px] font-semibold tracking-tight text-[var(--text-primary)]">
         {title}
       </h3>
       {description && (
-        <p className="text-[13px] text-[var(--text-muted)] mt-1 mb-5 max-w-sm leading-relaxed">
+        <p className="text-[13px] text-[var(--text-muted)] mt-1.5 mb-6 max-w-xs leading-relaxed">
           {description}
         </p>
       )}
 
-      <div className="flex flex-col items-center justify-center gap-3">
+      <div className="flex flex-col items-center justify-center gap-2.5">
         {actionLabel && onAction && (
           <Button variant="primary" size="md" onClick={onAction}>
             {actionLabel}
@@ -56,7 +57,7 @@ export function EmptyState({
           secondaryActionType === "link" ? (
             <button
               onClick={onSecondaryAction}
-              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors underline cursor-pointer tap-target"
+              className="text-[12.5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors underline underline-offset-2 cursor-pointer tap-target"
             >
               {secondaryActionLabel}
             </button>

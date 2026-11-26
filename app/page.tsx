@@ -23,6 +23,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncMergeModal } from "@/components/SyncMergeModal";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PageContainer } from "@/components/ui/PageContainer";
+import { SingleMetricTrendsView } from "@/components/SingleMetricTrendsView";
 import { initSyncEngine, syncAll } from "@/lib/sync/syncEngine";
 import { toast } from "@/lib/store/toastStore";
 import { formatDate } from "@/lib/utils/date";
@@ -93,7 +94,7 @@ const CATEGORY_ORDER: MetricCategory[] = [
   "Other",
 ];
 
-export type TrendsSubMode = "overlay" | "compare" | "single";
+export type TrendsSubMode = "single" | "compare" | "overlay";
 
 export default function GulaApp() {
   const [activeTab, setActiveTab] = useState<NavTab>("home");
@@ -101,7 +102,7 @@ export default function GulaApp() {
   const [summaries, setSummaries] = useState<LatestResultSummary[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>("glucose_fasting");
   const [selectedHistory, setSelectedHistory] = useState<ResultWithDate[]>([]);
-  const [trendsMode, setTrendsMode] = useState<TrendsSubMode>("overlay");
+  const [trendsMode, setTrendsMode] = useState<TrendsSubMode>("single");
   const [isLoading, setIsLoading] = useState(true);
 
   // Metric Detail Modal State
@@ -251,9 +252,9 @@ export default function GulaApp() {
 
   // ── Trends sub-mode segmented options ──────────────────────
   const trendsOptions = [
-    { value: "overlay" as TrendsSubMode, label: "Overlay", icon: <Layers className="w-3.5 h-3.5" /> },
-    { value: "compare" as TrendsSubMode, label: "Compare", icon: <GitCompare className="w-3.5 h-3.5" /> },
     { value: "single" as TrendsSubMode, label: "Single metric", icon: <ChartIcon className="w-3.5 h-3.5" /> },
+    { value: "compare" as TrendsSubMode, label: "Compare", icon: <GitCompare className="w-3.5 h-3.5" /> },
+    { value: "overlay" as TrendsSubMode, label: "Overlay", icon: <Layers className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -275,31 +276,30 @@ export default function GulaApp() {
         <header
           className={cn(
             "sticky top-0 z-30",
-            "bg-[var(--bg-primary)]/90 backdrop-blur-md",
-            "transition-[border-color] duration-[150ms] ease-out",
+            "transition-all duration-[150ms] ease-out",
             scrolled
-              ? "border-b border-[var(--border-subtle)]"
-              : "border-b border-transparent"
+              ? "bg-[var(--bg-primary)]/80 backdrop-blur-xl border-b border-[var(--border-subtle)] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+              : "bg-transparent border-b border-transparent"
           )}
         >
-          <PageContainer className="flex items-center justify-between py-3 gap-4">
+          <PageContainer className="flex items-center justify-between py-3.5 gap-4">
             {/* Title */}
             <div className="min-w-0">
-              <h1 className="text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] leading-tight">
-                {activeTab === "home" && "Your health"}
+              <h1 className="text-[15px] font-semibold tracking-tight text-[var(--text-primary)] leading-tight">
+                {activeTab === "home" && "Health overview"}
                 {activeTab === "trends" && "Trends"}
                 {activeTab === "settings" && "Settings"}
               </h1>
-              <p className="text-[12px] text-[var(--text-muted)] leading-snug mt-0.5">
+              <p className="text-[11.5px] text-[var(--text-faint)] leading-snug mt-0.5">
                 {activeTab === "home" && (
                   latestReportDate
-                    ? `Last report ${formatDate(latestReportDate)}`
+                    ? `Last report · ${formatDate(latestReportDate)}`
                     : "No reports yet"
                 )}
                 {activeTab === "trends" && (
-                  `${summaries.length} biomarkers · ${reports.length} ${reports.length === 1 ? "report" : "reports"}`
+                  `${summaries.length} markers · ${reports.length} ${reports.length === 1 ? "report" : "reports"}`
                 )}
-                {activeTab === "settings" && "Data and preferences"}
+                {activeTab === "settings" && "Data & preferences"}
               </p>
             </div>
 
@@ -310,11 +310,11 @@ export default function GulaApp() {
                   variant="primary"
                   size="sm"
                   onClick={() => setAddMenuOpen((o) => !o)}
-                  className="gap-1"
+                  className="gap-1.5"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add report</span>
-                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-[120ms]", addMenuOpen && "rotate-180")} />
+                  <Plus className="w-3 h-3 stroke-[2.5]" />
+                  <span>Add</span>
+                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-[100ms]", addMenuOpen && "rotate-180")} />
                 </Button>
 
                 {/* Dropdown menu */}
@@ -322,35 +322,34 @@ export default function GulaApp() {
                   <div
                     className={cn(
                       "absolute right-0 top-full mt-1.5 z-50",
-                      "min-w-[164px] rounded-xl",
-                      "bg-[var(--bg-card)] border border-[var(--border-subtle)]",
-                      "shadow-[0_4px_16px_rgba(0,0,0,0.12)]",
-                      "overflow-hidden",
+                      "min-w-[158px] rounded-xl p-1",
+                      "bg-[var(--bg-card)] border border-[var(--border-strong)]",
+                      "shadow-[var(--shadow-lg)]",
+                      "animate-in fade-in zoom-in-95 duration-[100ms]"
                     )}
                   >
                     <button
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-3.5 py-2.5",
-                        "text-[14px] text-[var(--text-primary)] font-medium",
-                        "hover:bg-[var(--bg-card-subtle)] transition-colors duration-[100ms]",
+                        "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg",
+                        "text-[12.5px] text-[var(--text-primary)] font-medium tracking-tight",
+                        "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
                         "cursor-pointer select-none text-left",
                       )}
                       onClick={() => { setAddMenuOpen(false); setIsUploadOpen(true); }}
                     >
-                      <Upload className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                      <Upload className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
                       Upload PDF
                     </button>
-                    <div className="border-t border-[var(--border-subtle)]" />
                     <button
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-3.5 py-2.5",
-                        "text-[14px] text-[var(--text-primary)] font-medium",
-                        "hover:bg-[var(--bg-card-subtle)] transition-colors duration-[100ms]",
+                        "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg",
+                        "text-[12.5px] text-[var(--text-primary)] font-medium tracking-tight",
+                        "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
                         "cursor-pointer select-none text-left",
                       )}
                       onClick={() => { setAddMenuOpen(false); setIsManualOpen(true); }}
                     >
-                      <FilePlus className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                      <FilePlus className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
                       Enter manually
                     </button>
                   </div>
@@ -361,7 +360,7 @@ export default function GulaApp() {
         </header>
 
         {/* ── Page content ───────────────────────────────────── */}
-        <PageContainer className="py-6 space-y-8">
+        <PageContainer className="py-5 space-y-7">
 
           {/* ═════ TAB 1: HOME ═════ */}
           {activeTab === "home" && (
@@ -369,69 +368,64 @@ export default function GulaApp() {
               {isLoading && summaries.length === 0 ? (
                 <DashboardSkeleton />
               ) : summaries.length > 0 ? (
-                <>
-                  {/* Summary strip — 3 neutral stats */}
-                  <div className="grid grid-cols-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] overflow-hidden">
-                    {/* Total tests */}
-                    <div className="flex flex-col px-4 sm:px-6 py-4 gap-1">
-                      <span className="text-[28px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+                <div className="space-y-7 animate-fade-up">
+                  {/* Summary strip */}
+                  <div className="grid grid-cols-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-[var(--shadow-sm)] overflow-hidden">
+                    <div className="flex flex-col px-4 sm:px-5 py-4 gap-1">
+                      <span className="text-[26px] font-semibold leading-none tabular-nums tracking-tight text-[var(--text-primary)]">
                         {stats.total}
                       </span>
-                      <span className="text-[12px] text-[var(--text-muted)] leading-tight">
-                        Total tests
+                      <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
+                        Markers
                       </span>
                     </div>
-
-                    {/* In range */}
-                    <div className="flex flex-col px-4 sm:px-6 py-4 gap-1 border-l border-[var(--border-subtle)]">
-                      <span className="text-[28px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+                    <div className="flex flex-col px-4 sm:px-5 py-4 gap-1 border-l border-[var(--border-subtle)]">
+                      <span className="text-[26px] font-semibold leading-none tabular-nums tracking-tight text-[var(--status-normal-text)]">
                         {stats.inRange}
                       </span>
-                      <span className="text-[12px] text-[var(--text-muted)] leading-tight">
+                      <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
                         In range
                       </span>
                     </div>
-
-                    {/* Needs attention — neutral at 0, amber/red when > 0 */}
-                    <div className="flex flex-col px-4 sm:px-6 py-4 gap-1 border-l border-[var(--border-subtle)]">
+                    <div className="flex flex-col px-4 sm:px-5 py-4 gap-1 border-l border-[var(--border-subtle)]">
                       {stats.needsAttention === 0 ? (
                         <>
                           <span className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-4 h-4 text-[var(--status-normal-dot)] shrink-0" />
-                            <span className="text-[14px] font-semibold text-[var(--text-primary)]">All good</span>
+                            <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-tight">All good</span>
                           </span>
-                          <span className="text-[12px] text-[var(--text-muted)] leading-tight">
+                          <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
                             All in range
                           </span>
                         </>
                       ) : (
                         <>
                           <span
-                            className="text-[28px] font-semibold leading-none tabular-nums"
+                            className="text-[26px] font-semibold leading-none tabular-nums tracking-tight"
                             style={{ color: stats.needsAttention > 2 ? "var(--status-abnormal-text)" : "var(--status-borderline-text)" }}
                           >
                             {stats.needsAttention}
                           </span>
-                          <span className="text-[12px] text-[var(--text-muted)] leading-tight">
-                            Needs attention
+                          <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
+                            Need attention
                           </span>
                         </>
                       )}
                     </div>
                   </div>
 
-                  {/* Needs attention section — only shown when > 0 */}
+                  {/* Needs attention */}
                   {needsAttentionSummaries.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                        <h2 className="text-[13px] font-semibold tracking-tight text-[var(--text-primary)]">
                           Needs attention
                         </h2>
-                        <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                        <span className="text-[11.5px] text-[var(--text-faint)] tabular-nums">
                           {needsAttentionSummaries.length}
                         </span>
                       </div>
-                      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
+                      <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))] auto-rows-fr">
                         {needsAttentionSummaries.map((summary) => (
                           <BiomarkerCard
                             key={`attention-${summary.metricKey}`}
@@ -444,18 +438,18 @@ export default function GulaApp() {
                   )}
 
                   {/* Category sections */}
-                  <div className="space-y-8">
+                  <div className="space-y-7">
                     {categoryGroups.map(({ category, items }) => (
                       <section key={category} className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                          <h3 className="text-[13px] font-semibold tracking-tight text-[var(--text-primary)]">
                             {category}
                           </h3>
-                          <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                          <span className="text-[11.5px] text-[var(--text-faint)] tabular-nums">
                             {items.length}
                           </span>
                         </div>
-                        <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
+                        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))] auto-rows-fr">
                           {items.map((summary) => (
                             <BiomarkerCard
                               key={summary.metricKey}
@@ -467,9 +461,8 @@ export default function GulaApp() {
                       </section>
                     ))}
                   </div>
-                </>
+                </div>
               ) : (
-                /* Calm empty state */
                 <EmptyState
                   title="No reports yet"
                   description="Upload a lab report PDF to start tracking your health."
@@ -505,10 +498,11 @@ export default function GulaApp() {
                       </span>
                     </div>
 
-                    {trendsMode === "overlay" && (
-                      <MultiMetricTrendChart
+                    {trendsMode === "single" && (
+                      <SingleMetricTrendsView
                         summaries={summaries}
-                        allHistory={allHistoryMap}
+                        reports={reports}
+                        onOpenDetail={handleOpenDetail}
                       />
                     )}
 
@@ -516,68 +510,36 @@ export default function GulaApp() {
                       <ReportCompareView reports={reports} />
                     )}
 
-                    {trendsMode === "single" && (
-                      <div className="space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]">
-                          <label className="text-[13px] font-medium text-[var(--text-muted)]">
-                            Metric
-                          </label>
-                          <select
-                            value={selectedKey}
-                            onChange={async (e) => {
-                              const key = e.target.value;
-                              setSelectedKey(key);
-                              const history = await getHistory(key);
-                              setSelectedHistory(history);
-                            }}
-                            className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[13px] font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer transition-[border-color] duration-[120ms]"
-                          >
-                            {summaries.map((s) => (
-                              <option key={s.metricKey} value={s.metricKey}>
-                                {s.displayName} ({s.category})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {(() => {
-                          const currentSummary = summaries.find((s) => s.metricKey === selectedKey);
-                          const currentDef = METRIC_DICTIONARY[selectedKey];
-                          return (
-                            <BiomarkerTrendChart
-                              history={selectedHistory}
-                              biomarkerName={currentSummary?.displayName || currentDef?.displayName || selectedKey}
-                              unit={currentSummary?.latestResult.unit || currentDef?.standardUnit || ""}
-                              refLow={currentSummary?.latestResult.refLow ?? currentDef?.defaultLow}
-                              refHigh={currentSummary?.latestResult.refHigh ?? currentDef?.defaultHigh}
-                              description={currentDef?.description}
-                            />
-                          );
-                        })()}
-                      </div>
+                    {trendsMode === "overlay" && (
+                      <MultiMetricTrendChart
+                        summaries={summaries}
+                        allHistory={allHistoryMap}
+                      />
                     )}
 
-                    {/* All tracked biomarkers */}
-                    <div className="pt-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-                          All metrics
-                        </h3>
-                        <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
-                          {summaries.length}
-                        </span>
+                    {/* All tracked biomarkers in compare and overlay modes */}
+                    {trendsMode !== "single" && (
+                      <div className="pt-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                            All metrics
+                          </h3>
+                          <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                            {summaries.length}
+                          </span>
+                        </div>
+                        <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
+                          {summaries.map((s) => (
+                            <BiomarkerCard
+                              key={s.metricKey}
+                              summary={s}
+                              isSelected={s.metricKey === selectedKey}
+                              onClick={() => handleOpenDetail(s)}
+                            />
+                          ))}
+                        </div>
                       </div>
-                      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] auto-rows-fr">
-                        {summaries.map((s) => (
-                          <BiomarkerCard
-                            key={s.metricKey}
-                            summary={s}
-                            isSelected={s.metricKey === selectedKey}
-                            onClick={() => handleOpenDetail(s)}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </>
                 ) : (
                   <EmptyState

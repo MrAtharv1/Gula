@@ -188,7 +188,7 @@ describe("Phase 6: Settings and Undo Engine", () => {
       expect(screen.getByText("Appearance")).toBeDefined();
       expect(screen.getByText("Light")).toBeDefined();
       expect(screen.getByText("Dark")).toBeDefined();
-      expect(screen.getByText("System")).toBeDefined();
+      expect(screen.getByText("Auto")).toBeDefined();
 
       // Uploaded reports & Undo button
       await waitFor(() => {

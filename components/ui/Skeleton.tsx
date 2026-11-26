@@ -11,10 +11,10 @@ export function Skeleton({
   ...props
 }: SkeletonProps) {
   const roundings = {
-    sm: "rounded-sm",
-    md: "rounded-md",
-    lg: "rounded-lg",
-    xl: "rounded-xl",
+    sm:  "rounded-sm",
+    md:  "rounded-md",
+    lg:  "rounded-lg",
+    xl:  "rounded-xl",
     "2xl": "rounded-2xl",
     full: "rounded-full",
   };
@@ -23,7 +23,7 @@ export function Skeleton({
     <div
       aria-hidden="true"
       className={cn(
-        "animate-pulse bg-[var(--bg-card-subtle)]",
+        "animate-pulse skeleton-shimmer",
         roundings[rounded],
         className
       )}

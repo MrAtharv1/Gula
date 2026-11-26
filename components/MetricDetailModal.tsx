@@ -27,42 +27,53 @@ export function MetricDetailModal({
 }: MetricDetailModalProps) {
   const [useConvertedUnit, setUseConvertedUnit] = useState(false);
 
-  if (!summary) return null;
-
-  const { latestResult, previousResult, changeValue, displayName, category, metricKey } =
-    summary;
-  const dictDef = METRIC_DICTIONARY[metricKey];
+  const latestResult = summary?.latestResult;
+  const previousResult = summary?.previousResult;
+  const changeValue = summary?.changeValue;
+  const displayName = summary?.displayName || "";
+  const category = summary?.category || "Other";
+  const metricKey = summary?.metricKey || "";
+  const dictDef = metricKey ? METRIC_DICTIONARY[metricKey] : undefined;
 
   // Determine if unit conversion is applicable (e.g. glucose or cholesterol mg/dL <-> mmol/L)
-  const isConvertible =
-    (metricKey.includes("glucose") || metricKey.includes("cholesterol") || metricKey === "ldl" || metricKey === "hdl" || metricKey === "triglycerides") &&
-    (latestResult.unit.toLowerCase() === "mg/dl" || latestResult.unit.toLowerCase() === "mmol/l");
+  const isConvertible = Boolean(
+    latestResult &&
+      (metricKey.includes("glucose") ||
+        metricKey.includes("cholesterol") ||
+        metricKey === "ldl" ||
+        metricKey === "hdl" ||
+        metricKey === "triglycerides") &&
+      (latestResult.unit.toLowerCase() === "mg/dl" ||
+        latestResult.unit.toLowerCase() === "mmol/l")
+  );
 
   const alternateUnit =
-    latestResult.unit.toLowerCase() === "mg/dl" ? "mmol/L" : "mg/dL";
-  const targetUnit = useConvertedUnit ? alternateUnit : latestResult.unit;
+    latestResult?.unit.toLowerCase() === "mg/dl" ? "mmol/L" : "mg/dL";
+  const targetUnit = useConvertedUnit ? alternateUnit : (latestResult?.unit || "");
 
   // Converted value
   const displayValue = useMemo(() => {
+    if (!latestResult) return 0;
     if (!useConvertedUnit || !isConvertible) return latestResult.value;
     return convertMetricUnit(metricKey, latestResult.value, latestResult.unit, targetUnit).value;
-  }, [useConvertedUnit, isConvertible, latestResult.value, latestResult.unit, targetUnit, metricKey]);
+  }, [useConvertedUnit, isConvertible, latestResult?.value, latestResult?.unit, targetUnit, metricKey]);
 
   // Converted reference bounds
   const displayRefLow = useMemo(() => {
-    if (latestResult.refLow === undefined) return undefined;
+    if (!latestResult || latestResult.refLow === undefined) return undefined;
     if (!useConvertedUnit || !isConvertible) return latestResult.refLow;
     return convertMetricUnit(metricKey, latestResult.refLow, latestResult.unit, targetUnit).value;
-  }, [useConvertedUnit, isConvertible, latestResult.refLow, latestResult.unit, targetUnit, metricKey]);
+  }, [useConvertedUnit, isConvertible, latestResult?.refLow, latestResult?.unit, targetUnit, metricKey]);
 
   const displayRefHigh = useMemo(() => {
-    if (latestResult.refHigh === undefined) return undefined;
+    if (!latestResult || latestResult.refHigh === undefined) return undefined;
     if (!useConvertedUnit || !isConvertible) return latestResult.refHigh;
     return convertMetricUnit(metricKey, latestResult.refHigh, latestResult.unit, targetUnit).value;
-  }, [useConvertedUnit, isConvertible, latestResult.refHigh, latestResult.unit, targetUnit, metricKey]);
+  }, [useConvertedUnit, isConvertible, latestResult?.refHigh, latestResult?.unit, targetUnit, metricKey]);
 
   // Converted history for trend chart
   const chartHistory = useMemo(() => {
+    if (!history) return [];
     if (!useConvertedUnit || !isConvertible) return history;
     return history.map((item) => ({
       ...item,
@@ -78,6 +89,8 @@ export function MetricDetailModal({
           : undefined,
     }));
   }, [history, useConvertedUnit, isConvertible, targetUnit, metricKey]);
+
+  if (!summary || !latestResult) return null;
 
   const statusLabel =
     latestResult.flag === "high"

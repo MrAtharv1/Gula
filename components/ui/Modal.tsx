@@ -23,12 +23,9 @@ export function Modal({
   className,
   maxWidth = "lg",
 }: ModalProps) {
-  // Handle ESC key press
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
+      if (e.key === "Escape") onClose();
     },
     [onClose]
   );
@@ -49,10 +46,10 @@ export function Modal({
   if (!isOpen) return null;
 
   const maxWidths = {
-    sm: "sm:max-w-sm",
-    md: "sm:max-w-md",
-    lg: "sm:max-w-lg",
-    xl: "sm:max-w-xl",
+    sm:  "sm:max-w-sm",
+    md:  "sm:max-w-md",
+    lg:  "sm:max-w-lg",
+    xl:  "sm:max-w-xl",
     "2xl": "sm:max-w-2xl",
   };
 
@@ -61,48 +58,50 @@ export function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={title || "Dialog"}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs transition-opacity duration-150 animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
     >
-      {/* Backdrop click dismiss */}
+      {/* Backdrop */}
       <div
         className="fixed inset-0 -z-10"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Sheet on mobile (slides up), Centered dialog on desktop */}
+      {/* Panel */}
       <div
         className={cn(
-          "w-full bg-[var(--bg-surface)] border-t sm:border border-[var(--border-subtle)] shadow-lg",
+          "w-full bg-[var(--bg-card)] border-t sm:border border-[var(--border-subtle)]",
           "rounded-t-2xl sm:rounded-xl max-h-[88vh] flex flex-col overflow-hidden",
-          "animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-150 ease-out",
+          "shadow-[var(--shadow-xl)]",
+          "animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-[0.97] duration-150 ease-out",
           maxWidths[maxWidth],
           className
         )}
       >
-        {/* Mobile Grab Handle */}
+        {/* Mobile grab handle */}
         <div className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1">
-          <div className="w-10 h-1 bg-[var(--border-strong)] rounded-full" />
+          <div className="w-8 h-1 bg-[var(--border-strong)] rounded-full" />
         </div>
 
-        {/* Modal Header */}
+        {/* Header */}
         {(title || description) && (
-          <div className="flex items-center justify-between p-4 sm:p-5 pb-3 sm:pb-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-start justify-between p-5 pb-4 border-b border-[var(--border-subtle)]">
             <div>
               {title && (
-                <h3 className="text-base font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                <h3 className="text-[15px] font-semibold tracking-tight text-[var(--text-primary)]">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+                <p className="text-[12.5px] text-[var(--text-muted)] mt-0.5 leading-relaxed">
                   {description}
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)] transition-colors tap-target cursor-pointer"
+              className="p-1.5 -mt-0.5 -mr-0.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all duration-[100ms] cursor-pointer"
               aria-label="Close dialog"
             >
               <X className="w-4 h-4" />
@@ -110,8 +109,10 @@ export function Modal({
           </div>
         )}
 
-        {/* Modal Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1">{children}</div>
+        {/* Body */}
+        <div className="p-5 overflow-y-auto flex-1">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -15,10 +15,6 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   showDot?: boolean;
 }
 
-/** Status badge. Normal shows NO badge at all — call site decides.
- *  Uses new status color tokens. Dot: 6px circle.
- *  Sentence case labels expected from the caller.
- */
 export function Badge({
   className,
   variant = "neutral",
@@ -28,7 +24,7 @@ export function Badge({
   ...props
 }: BadgeProps) {
   const baseStyles =
-    "inline-flex items-center font-medium rounded-full border transition-colors select-none";
+    "inline-flex items-center font-medium rounded-full border select-none tracking-tight";
 
   const variants: Record<BadgeVariant, string> = {
     normal:
@@ -46,17 +42,17 @@ export function Badge({
   };
 
   const dotColors: Record<BadgeVariant, string> = {
-    normal: "bg-[var(--status-normal-dot)]",
-    borderline: "bg-[var(--status-borderline-dot)]",
-    abnormal: "bg-[var(--status-abnormal-dot)]",
-    low: "bg-[var(--status-abnormal-dot)]",
-    high: "bg-[var(--status-abnormal-dot)]",
-    neutral: "bg-[var(--text-muted)]",
+    normal:    "bg-[var(--status-normal-dot)]",
+    borderline:"bg-[var(--status-borderline-dot)]",
+    abnormal:  "bg-[var(--status-abnormal-dot)]",
+    low:       "bg-[var(--status-abnormal-dot)]",
+    high:      "bg-[var(--status-abnormal-dot)]",
+    neutral:   "bg-[var(--text-faint)]",
   };
 
   const sizes = {
-    sm: "text-[11px] px-1.5 py-0.5 gap-1",
-    md: "text-[12px] px-2 py-0.5 gap-1",
+    sm: "text-[10.5px] px-1.5 py-[2px] gap-[3px]",
+    md: "text-[11.5px] px-2 py-[3px] gap-1",
   };
 
   return (

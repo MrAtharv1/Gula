@@ -17,10 +17,6 @@ interface SegmentedControlProps<T extends string = string> {
   size?: "sm" | "md";
 }
 
-/** ONE shared segmented-control used for every tab/filter group in the app.
- *  Active state: surface background + 1px border. No solid fill.
- *  Motion: 120ms ease-out. Respects prefers-reduced-motion via CSS.
- */
 export function SegmentedControl<T extends string = string>({
   options,
   value,
@@ -33,7 +29,7 @@ export function SegmentedControl<T extends string = string>({
     <div
       role="radiogroup"
       className={cn(
-        "inline-flex items-center gap-0.5 p-0.5 rounded-[10px]",
+        "inline-flex items-center gap-0.5 p-0.5 rounded-[9px]",
         "bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)]",
         className
       )}
@@ -50,26 +46,23 @@ export function SegmentedControl<T extends string = string>({
             title={opt.title}
             onClick={() => !opt.disabled && onChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 font-medium rounded-lg select-none",
-              "transition-[background-color,border-color,color,box-shadow,opacity]",
-              "duration-[120ms] ease-out",
+              "inline-flex items-center gap-1.5 rounded-[7px] select-none tracking-tight",
+              "transition-all duration-[100ms] ease-out",
               opt.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-              isSm ? "px-2.5 py-1 text-[13px]" : "px-3 py-1.5 text-sm",
+              isSm ? "px-2.5 py-1 text-[12.5px]" : "px-3 py-1.5 text-[13px]",
               isActive
                 ? [
-                    "bg-[var(--bg-card)] text-[var(--text-primary)]",
-                    "border border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]",
-                    "font-semibold",
+                    "bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold",
+                    "shadow-[var(--shadow-sm)]",
                   ]
                 : [
-                    "border border-transparent",
-                    "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    !opt.disabled && "hover:bg-[var(--bg-card)]/50",
+                    "text-[var(--text-muted)] font-medium",
+                    !opt.disabled && "hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
                   ]
             )}
           >
             {opt.icon && (
-              <span className="shrink-0 w-3.5 h-3.5 flex items-center justify-center">
+              <span className="shrink-0 w-3.5 h-3.5 flex items-center justify-center opacity-80">
                 {opt.icon}
               </span>
             )}

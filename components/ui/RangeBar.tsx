@@ -108,8 +108,8 @@ export function RangeBar({
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Track — 4px height */}
-      <div className="relative w-full h-1 rounded-full bg-[var(--bg-card-subtle)]">
+      {/* Track — 3px height, premium thin */}
+      <div className="relative w-full h-[3px] rounded-full bg-[var(--bg-card-subtle)]">
         {/* Normal range tinted band */}
         <div
           className={cn("absolute top-0 bottom-0 rounded-full", bandStyle)}
@@ -118,11 +118,11 @@ export function RangeBar({
             width: `${Math.max(1, normalEndPct - normalStartPct)}%`,
           }}
         />
-        {/* 8px dot marker — clamped inside track */}
+        {/* 7px dot marker */}
         <div
           className={cn(
             "absolute top-1/2 -translate-y-1/2 -translate-x-1/2",
-            "w-2 h-2 rounded-full",
+            "w-[7px] h-[7px] rounded-full",
             "ring-[1.5px] ring-[var(--bg-card)]",
             "transition-[left] duration-[150ms] ease-out",
             dotStyle
@@ -132,13 +132,13 @@ export function RangeBar({
         />
       </div>
 
-      {/* Labels — 11px muted tabular-nums sans-serif, no "NORMAL" */}
+      {/* Labels — 10.5px faint tabular-nums */}
       {showLabels && (refLow !== undefined || refHigh !== undefined) && (
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[11px] text-[var(--text-muted)] tabular-nums font-normal">
+          <span className="text-[10.5px] text-[var(--text-faint)] tabular-nums font-normal">
             {leftLabel}
           </span>
-          <span className="text-[11px] text-[var(--text-muted)] tabular-nums font-normal">
+          <span className="text-[10.5px] text-[var(--text-faint)] tabular-nums font-normal">
             {rightLabel}
           </span>
         </div>

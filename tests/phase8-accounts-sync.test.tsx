@@ -279,7 +279,7 @@ describe("Phase 8: Accounts and Local-First Sync", () => {
       useSyncStore.getState().setIsMergeModalOpen(true);
 
       render(<SyncMergeModal />);
-      expect(screen.getByText("Existing Health Data Found")).toBeDefined();
+      expect(screen.getByText(/existing health data found/i)).toBeDefined();
       expect(screen.getByText("Merge with your account")).toBeDefined();
       expect(screen.getByText("Start fresh")).toBeDefined();
     });
@@ -397,7 +397,7 @@ describe("Phase 8: Accounts and Local-First Sync", () => {
       render(<SettingsView onDataChanged={vi.fn()} />);
 
       // Section title
-      expect(screen.getByText("Account & Cloud Sync")).toBeDefined();
+      expect(screen.getByText(/Account & Cloud sync/i)).toBeDefined();
       expect(screen.getByRole("button", { name: /send magic link/i })).toBeDefined();
       expect(screen.getByRole("button", { name: /continue with google/i })).toBeDefined();
 

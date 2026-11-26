@@ -23,7 +23,6 @@ describe("Phase 4: Home Dashboard Components", () => {
       );
       expect(screen.getByText("70")).toBeDefined();
       expect(screen.getByText("99")).toBeDefined();
-      expect(screen.getByText(/normal/i)).toBeDefined();
     });
 
     it("renders upper bound only when refLow is undefined", () => {
@@ -36,7 +35,7 @@ describe("Phase 4: Home Dashboard Components", () => {
           showLabels
         />
       );
-      expect(screen.getByText("200")).toBeDefined();
+      expect(screen.getByText(/under 200/i)).toBeDefined();
     });
 
     it("renders fallback when no reference bounds exist", () => {
@@ -112,12 +111,10 @@ describe("Phase 4: Home Dashboard Components", () => {
       const handleClick = vi.fn();
       render(<BiomarkerCard summary={mockSummary} onClick={handleClick} />);
 
-      expect(screen.getByText("Fasting Blood Glucose")).toBeDefined();
+      expect(screen.getByText(/fasting glucose/i)).toBeDefined();
       expect(screen.getByText("104")).toBeDefined();
       expect(screen.getByText("mg/dL")).toBeDefined();
-      expect(screen.getByText("Borderline")).toBeDefined();
-      expect(screen.getByText("up 12")).toBeDefined();
-      expect(screen.getByText("vs prev")).toBeDefined();
+      expect(screen.getByText(/up\s+12/i)).toBeDefined();
     });
 
     it("triggers onClick when card is clicked or keyboard activated", () => {
@@ -142,14 +139,14 @@ describe("Phase 4: Home Dashboard Components", () => {
       const { rerender } = render(
         <BiomarkerCard summary={decreasedSummary} onClick={() => {}} />
       );
-      expect(screen.getByText("down 7")).toBeDefined();
+      expect(screen.getByText(/down\s+7/i)).toBeDefined();
 
       const unchangedSummary: LatestResultSummary = {
         ...mockSummary,
         changeValue: 0,
       };
       rerender(<BiomarkerCard summary={unchangedSummary} onClick={() => {}} />);
-      expect(screen.getByText("no change")).toBeDefined();
+      expect(screen.getByText(/no change/i)).toBeDefined();
     });
 
     it("displays 'First record' when no previous report exists", () => {

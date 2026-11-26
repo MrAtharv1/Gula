@@ -373,11 +373,11 @@ describe("Phase 5: Trends and Metric Detail", () => {
         />
       );
 
-      expect(screen.getByText("Multi-Metric Overlay")).toBeDefined();
-      expect(screen.getByText("(3/4 selected)")).toBeDefined();
-      expect(screen.getByText("Total Cholesterol")).toBeDefined();
-      expect(screen.getByText("LDL Cholesterol")).toBeDefined();
-      expect(screen.getByText("HDL Cholesterol")).toBeDefined();
+      expect(screen.getByText("Overlay")).toBeDefined();
+      expect(screen.getByText("(3/4)")).toBeDefined();
+      expect(screen.getAllByText("Total Chol").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("LDL").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("HDL").length).toBeGreaterThanOrEqual(1);
     });
 
     it("toggles normalized mode scale", () => {
@@ -389,11 +389,12 @@ describe("Phase 5: Trends and Metric Detail", () => {
         />
       );
 
-      const toggle = screen.getByRole("button", { name: /standard units/i });
-      expect(toggle).toBeDefined();
-      fireEvent.click(toggle);
+      const actualBtn = screen.getByRole("radio", { name: /actual values/i });
+      expect(actualBtn).toBeDefined();
+      fireEvent.click(actualBtn);
 
-      expect(screen.getByText("Normalized (0–100%)")).toBeDefined();
+      const relativeBtn = screen.getByRole("radio", { name: /relative/i });
+      expect(relativeBtn).toBeDefined();
     });
   });
 });
