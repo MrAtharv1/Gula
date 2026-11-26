@@ -19,6 +19,8 @@ vi.mock("../lib/db/duplicateDetection", () => ({
 
 vi.mock("../lib/db", () => ({
   addReport: vi.fn().mockResolvedValue(1),
+  getActiveReports: vi.fn().mockResolvedValue([]),
+  hasReachedGuestReportLimit: vi.fn().mockReturnValue(false),
 }));
 
 describe("Phase 6: Upload UX for Long Reports", () => {

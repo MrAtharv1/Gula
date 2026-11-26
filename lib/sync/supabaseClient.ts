@@ -58,6 +58,7 @@ export function resetMockCloudStore() {
   mockStore.reports.clear();
   mockStore.results.clear();
   mockStore.storageFiles.clear();
+  mockPasswordAccounts.clear();
 }
 
 /** Set test mock user directly */
@@ -67,45 +68,157 @@ export function setMockUser(user: AuthUser | null) {
 }
 
 /* ==================================================================
- * AUTHENTICATION API
+ * AUTHENTICATION API (Email + Password & Google OAuth)
  * ================================================================== */
 
-export async function signInWithMagicLink(email: string): Promise<{ error: Error | null }> {
+const mockPasswordAccounts = new Map<string, { password: string; user: AuthUser }>();
+
+function formatSupabaseAuthError(err: {
+  message?: string;
+  code?: string;
+  status?: number;
+}): Error {
+  const code = (err.code || "").toLowerCase();
+  const msg = err.message || "Authentication failed.";
+
+  if (err.status === 429 || code === "over_email_send_rate_limit" || /rate limit/i.test(msg)) {
+    return new Error(
+      "Email rate limit exceeded (Supabase allows ~2 confirmation emails/hr on default SMTP). Use 'Continue with Google' or disable 'Confirm email' in Supabase Auth -> Providers -> Email."
+    );
+  }
+  if (code === "email_not_confirmed" || /email not confirmed/i.test(msg)) {
+    return new Error(
+      "Please confirm your email from the link in your inbox before signing in (or disable 'Confirm email' in Supabase Email settings)."
+    );
+  }
+  if (code === "user_already_exists" || /already registered/i.test(msg)) {
+    return new Error("An account with this email already exists. Switch to Sign in.");
+  }
+  if (code === "invalid_credentials" || /invalid login credentials/i.test(msg)) {
+    return new Error("Incorrect email or password.");
+  }
+  if (code === "weak_password") {
+    return new Error("Password is too weak. Use at least 6 characters with letters and numbers.");
+  }
+  if (code === "email_address_invalid") {
+    return new Error("Please enter a valid email address.");
+  }
+  return new Error(msg);
+}
+
+export async function signInWithPassword(
+  email: string,
+  password: string
+): Promise<{ error: Error | null }> {
+  const cleanEmail = email.trim().toLowerCase();
   const client = getSupabase();
   if (client) {
-    const { error } = await client.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-      },
+    const { error } = await client.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
     });
-    return { error: error ? new Error(error.message) : null };
+    return { error: error ? formatSupabaseAuthError(error) : null };
   }
 
-  // Local / Mock fallback (instant test authentication)
-  const mockUser: AuthUser = {
+  if (!cleanEmail.includes("@") || password.length < 6) {
+    return { error: new Error("Enter a valid email and a password of at least 6 characters.") };
+  }
+
+  const existing = mockPasswordAccounts.get(cleanEmail);
+  if (existing && existing.password !== password) {
+    return { error: new Error("Incorrect email or password.") };
+  }
+
+  const mockUser: AuthUser = existing?.user || {
     id: "usr_" + Math.random().toString(36).substring(2, 9),
-    email,
+    email: email.trim(),
     createdAt: new Date().toISOString(),
   };
+  mockPasswordAccounts.set(cleanEmail, { password, user: mockUser });
   mockStore.user = mockUser;
   mockStore.authListeners.forEach((fn) => fn(mockUser));
   return { error: null };
 }
 
+export async function signUpWithPassword(
+  email: string,
+  password: string
+): Promise<{ error: Error | null; needsConfirmation?: boolean }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const client = getSupabase();
+  if (client) {
+    const { data, error } = await client.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      },
+    });
+    if (error) return { error: formatSupabaseAuthError(error) };
+    // If Supabase requires email confirmation, session will be null until confirmed
+    return { error: null, needsConfirmation: !data.session };
+  }
+
+  if (!cleanEmail.includes("@") || password.length < 6) {
+    return { error: new Error("Enter a valid email and a password of at least 6 characters.") };
+  }
+
+  const mockUser: AuthUser = {
+    id: "usr_" + Math.random().toString(36).substring(2, 9),
+    email: email.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  mockPasswordAccounts.set(cleanEmail, { password, user: mockUser });
+  mockStore.user = mockUser;
+  mockStore.authListeners.forEach((fn) => fn(mockUser));
+  return { error: null, needsConfirmation: false };
+}
+
 export async function signInWithGoogle(): Promise<{ error: Error | null }> {
   const client = getSupabase();
   if (client) {
+    let isNative = false;
+    try {
+      const { Capacitor } = await import("@capacitor/core");
+      isNative = Capacitor.isNativePlatform();
+    } catch {
+      isNative = false;
+    }
+
+    if (isNative) {
+      const { data, error } = await client.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: "com.gula.health://auth-callback",
+          skipBrowserRedirect: true,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+      if (error) return { error: new Error(error.message) };
+      if (data?.url) {
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url });
+      }
+      return { error: null };
+    }
+
     const { error } = await client.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
       },
     });
     return { error: error ? new Error(error.message) : null };
   }
 
-  // Local / Mock fallback
+  // Local / Mock fallback when Supabase keys are not yet configured
   const mockUser: AuthUser = {
     id: "google_usr_" + Math.random().toString(36).substring(2, 9),
     email: "user@example.com",

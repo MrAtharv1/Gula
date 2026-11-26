@@ -24,7 +24,7 @@ export function SyncMergeModal({ onComplete }: SyncMergeModalProps) {
       await handleMergeDecision(choice);
       toast(
         choice === "merge"
-          ? "Local reports merged into your account."
+          ? "Browser reports merged into your encrypted cloud account."
           : "Started fresh with your cloud account.",
         "success"
       );
@@ -51,7 +51,7 @@ export function SyncMergeModal({ onComplete }: SyncMergeModalProps) {
         <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--status-normal-bg)] border border-[var(--status-normal-border)] text-[var(--status-normal-text)]">
           <ShieldCheck className="w-5 h-5 shrink-0 text-[var(--status-normal-dot)]" />
           <p className="text-[12px] leading-relaxed">
-            Signed in as <span className="font-semibold">{user?.email}</span>. We found reports on this device. How would you like to proceed?
+            Signed in as <span className="font-semibold">{user?.email}</span>. We found existing guest reports in your browser. How would you like to proceed?
           </p>
         </div>
 

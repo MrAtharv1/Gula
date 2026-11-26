@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Report } from "@/lib/db/schema";
 import {
   db,
@@ -18,23 +18,20 @@ import {
 import { usePreferenceStore } from "@/lib/store/preferenceStore";
 import { useSyncStore } from "@/lib/store/syncStore";
 import {
-  signInWithMagicLink,
-  signInWithGoogle,
-  signOut,
-} from "@/lib/sync/supabaseClient";
-import {
-  syncAll,
   getLazyPdfBlob,
   deleteAccountAndCloudData,
 } from "@/lib/sync/syncEngine";
+import { computeBmi } from "@/lib/utils/profileExtractor";
+import { exportDoctorReportPdf } from "@/lib/utils/doctorPdfExport";
 import { toast } from "@/lib/store/toastStore";
 import { formatDate } from "@/lib/utils/date";
-import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
 import { Modal } from "./ui/Modal";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { PdfPreview } from "./PdfPreview";
+import { ThemeToggle } from "./ThemeToggle";
+import { APP_LANGUAGES, AppLanguage, useTranslation } from "@/lib/i18n/translations";
 import {
   Undo2,
   RotateCcw,
@@ -47,23 +44,104 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Mail,
-  LogOut,
+  User,
+  Camera,
+  ShieldCheck,
+  FileDown,
   Loader2,
+  LogIn,
+  ChevronRight,
+  Globe,
 } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
 
 interface SettingsViewProps {
   onDataChanged: () => void;
+  onOpenAuth?: () => void;
 }
 
-export function SettingsView({ onDataChanged }: SettingsViewProps) {
+const PRIVACY_POLICY_POINTS = [
+  {
+    title: "Browser-first PDF parsing",
+    body: "Lab PDFs are parsed directly in your browser to extract biomarkers and reference ranges. Patient IDs and barcodes are scrubbed from parsed biomarker metrics.",
+  },
+  {
+    title: "Guest mode (up to 2 reports)",
+    body: "Without signing in, your reports and profile fields stay stored locally in your browser’s IndexedDB and local storage until you sign in or clear them.",
+  },
+  {
+    title: "Encrypted cloud storage & transit",
+    body: "When you sign in via Email/Password or Google, synced reports and original PDFs are encrypted in transit (HTTPS/TLS) and encrypted at rest in private cloud storage.",
+  },
+  {
+    title: "Strict per-user access control",
+    body: "Database Row-Level Security (RLS) policies and user-scoped storage buckets ensure only your authenticated account can read, update, or download your records.",
+  },
+  {
+    title: "Zero ad tracking or data selling",
+    body: "We never sell, rent, or share your health data, blood test results, or profile information with advertisers, marketers, or third-party brokers.",
+  },
+  {
+    title: "Full export & permanent deletion",
+    body: "Download all reports and biomarker history anytime as JSON or CSV, or permanently erase your local browser data and cloud account with one confirmation.",
+  },
+];
+
+/**
+ * Resizes an image file to a lightweight square-ish JPEG/PNG data URL (max 256px)
+ * so custom profile DPs fit comfortably inside persisted preferences.
+ */
+async function readAndResizeAvatar(file: File): Promise<string> {
+  const rawDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read selected image"));
+    reader.readAsDataURL(file);
+  });
+
+  if (typeof document === "undefined") return rawDataUrl;
+
+  return new Promise<string>((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxSize = 256;
+      const scale = Math.min(1, maxSize / Math.max(img.width || 1, img.height || 1));
+      const width = Math.max(1, Math.round((img.width || maxSize) * scale));
+      const height = Math.max(1, Math.round((img.height || maxSize) * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(rawDataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      try {
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      } catch {
+        resolve(rawDataUrl);
+      }
+    };
+    img.onerror = () => resolve(rawDataUrl);
+    img.src = rawDataUrl;
+  });
+}
+
+export function SettingsView({ onDataChanged, onOpenAuth }: SettingsViewProps) {
   const {
     glucoseUnit,
     cholesterolUnit,
+    profile,
     setGlucoseUnit,
     setCholesterolUnit,
+    updateProfile,
+    resetProfileAvatar,
+    clearActiveProfile,
   } = usePreferenceStore();
+
+  const { user, syncStatus } = useSyncStore();
+  const { t, language, setLanguage } = useTranslation();
 
   const [activeReports, setActiveReports] = useState<Report[]>([]);
   const [undoneReports, setUndoneReports] = useState<Report[]>([]);
@@ -77,11 +155,9 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
   const [pdfViewReport, setPdfViewReport] = useState<Report | null>(null);
   const [pdfBuffer, setPdfBuffer] = useState<ArrayBuffer | null>(null);
   const [reportToRemove, setReportToRemove] = useState<Report | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  // Phase 8 Sync & Auth State
-  const { user, syncStatus, lastSyncedAt } = useSyncStore();
-  const [authEmail, setAuthEmail] = useState("");
-  const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Load reports and results counts
   const loadReports = useCallback(async () => {
@@ -93,13 +169,50 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
       setUndoneReports(undone);
       setResultsCountMap(counts);
     } catch (err) {
-      console.error("Failed to load reports in Settings:", err);
+      console.error("Failed to load reports in My Account:", err);
     }
   }, []);
 
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  // Derived auto-extracted metadata from reports
+  const latestReport = activeReports[0] || null;
+  const bmiValue = useMemo(
+    () => computeBmi(profile?.heightCm || "", profile?.weightKg || ""),
+    [profile?.heightCm, profile?.weightKg]
+  );
+
+  const effectiveAvatar = profile?.avatarDataUrl || user?.avatarUrl || "";
+  const avatarInitials = useMemo(() => {
+    const source = (profile?.fullName || user?.email || "").trim();
+    if (!source) return "";
+    const parts = source.split(/[\s@._-]+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return source.slice(0, 2).toUpperCase();
+  }, [profile?.fullName, user?.email]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+    if (!selectedFile.type.startsWith("image/")) {
+      toast("Please choose an image file (PNG, JPG, or WebP).", "error");
+      return;
+    }
+    try {
+      const dataUrl = await readAndResizeAvatar(selectedFile);
+      updateProfile({ avatarDataUrl: dataUrl });
+      toast("Profile photo updated.", "success");
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't load the selected image.", "error");
+    } finally {
+      e.target.value = "";
+    }
+  };
 
   // Handle Undo Last Upload
   const handleConfirmUndo = async () => {
@@ -179,10 +292,31 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
   };
 
   // Handle Export Data
+  const handleExportDoctorPdf = async () => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      const { fileName } = await exportDoctorReportPdf({
+        profile,
+        accountEmail: user?.email,
+      });
+      toast(`Downloaded ${fileName}`, "success");
+    } catch (err: any) {
+      console.error(err);
+      toast(err?.message || "Doctor PDF export failed.", "error");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const handleExportJson = async () => {
     try {
       const jsonStr = await exportAllDataAsJson();
-      downloadFile(jsonStr, `gula-export-${new Date().toISOString().split("T")[0]}.json`, "application/json");
+      downloadFile(
+        jsonStr,
+        `gula-export-${new Date().toISOString().split("T")[0]}.json`,
+        "application/json"
+      );
       toast("Exported data as JSON.", "success");
     } catch (err) {
       console.error(err);
@@ -193,7 +327,11 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
   const handleExportCsv = async () => {
     try {
       const csvStr = await exportAllDataAsCsv();
-      downloadFile(csvStr, `gula-biomarkers-${new Date().toISOString().split("T")[0]}.csv`, "text/csv");
+      downloadFile(
+        csvStr,
+        `gula-biomarkers-${new Date().toISOString().split("T")[0]}.csv`,
+        "text/csv"
+      );
       toast("Exported data as CSV.", "success");
     } catch (err) {
       console.error(err);
@@ -218,64 +356,13 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
     try {
       setIsDeleteAllConfirmOpen(false);
       await deleteAllData();
+      clearActiveProfile();
       await loadReports();
       onDataChanged();
       toast("All health records have been permanently deleted.", "info");
     } catch (err) {
       console.error(err);
       toast("Failed to delete all data.", "error");
-    }
-  };
-
-  // Auth & Sync handlers
-  const handleSendMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authEmail.trim()) return;
-    setIsAuthBusy(true);
-    try {
-      const { error } = await signInWithMagicLink(authEmail.trim());
-      if (error) {
-        toast(error.message, "error");
-      } else {
-        toast("Check your email for the magic sign-in link.", "success");
-        setAuthEmail("");
-      }
-    } catch (err: any) {
-      toast(err.message || "Failed to send magic link", "error");
-    } finally {
-      setIsAuthBusy(false);
-    }
-  };
-
-  const handleSignInGoogle = async () => {
-    setIsAuthBusy(true);
-    try {
-      const { error } = await signInWithGoogle();
-      if (error) toast(error.message, "error");
-    } catch (err: any) {
-      toast(err.message || "Failed to sign in with Google", "error");
-    } finally {
-      setIsAuthBusy(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast("Signed out. Local records remain on this device.", "info");
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleSyncNow = async () => {
-    try {
-      await syncAll();
-      await loadReports();
-      onDataChanged();
-      toast("Sync complete.", "success");
-    } catch (err: any) {
-      toast("Sync failed: " + (err.message || "Unknown error"), "error");
     }
   };
 
@@ -295,181 +382,364 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
     }
   };
 
+  const fieldInputClass =
+    "w-full px-3 py-1.5 text-[12.5px] rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors";
+
   return (
     <div className="space-y-8 max-w-3xl pb-12">
-      {/* ================= GROUP 1: APPEARANCE ================= */}
-      <section className="space-y-3">
-        <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
-          Appearance
-        </h3>
-        <Card className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-              Theme mode
-            </h4>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Select your visual preference. Defaults to your operating system.
-            </p>
+      {/* ================= MOBILE-ONLY QUICK CONTROLS (< md) ================= */}
+      {/* Desktop shows these in the left sidebar; mobile/APK shows them here at top of My Account */}
+      <section className="md:hidden space-y-3" aria-label="Mobile account, appearance and language controls">
+        <Card className="p-4 space-y-4">
+          {/* 1. Sign in / Account */}
+          <div className="space-y-1.5">
+            <span className="block text-[11px] font-medium text-[var(--text-muted)]">
+              {user ? "Signed in" : t.loginSignup}
+            </span>
+            <button
+              type="button"
+              onClick={() => onOpenAuth?.()}
+              className="w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] text-left transition-colors cursor-pointer"
+            >
+              {user ? (
+                <>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-muted)] text-[var(--accent)] flex items-center justify-center text-[11px] font-semibold uppercase shrink-0">
+                      {(profile?.fullName || user.email).substring(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate leading-tight">
+                        {profile?.fullName || user.email}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-faint)] capitalize leading-tight mt-0.5">
+                        {user.email} · {syncStatus}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--text-faint)] shrink-0" />
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--accent-subtle)] border border-[var(--accent-muted)] text-[var(--accent)] flex items-center justify-center shrink-0">
+                      <LogIn className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-semibold text-[var(--text-primary)] leading-tight truncate">
+                        {t.loginSignup}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-faint)] leading-tight mt-0.5 truncate">
+                        {t.syncAcrossDevices}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--text-faint)] shrink-0" />
+                </>
+              )}
+            </button>
           </div>
 
-          <ThemeToggle className="self-start sm:self-auto" />
+          {/* 2. Appearance */}
+          <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+            <span className="block text-[11px] font-medium text-[var(--text-muted)]">
+              {t.appearance}
+            </span>
+            <ThemeToggle compact />
+          </div>
+
+          {/* 3. Language */}
+          <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+            <label
+              htmlFor="mobile-account-language"
+              className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]"
+            >
+              <Globe className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+              <span>{t.language}</span>
+            </label>
+            <select
+              id="mobile-account-language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as AppLanguage)}
+              className={fieldInputClass}
+            >
+              {APP_LANGUAGES.map((langOpt) => (
+                <option key={langOpt.code} value={langOpt.code}>
+                  {langOpt.nativeName} ({langOpt.name})
+                </option>
+              ))}
+            </select>
+          </div>
         </Card>
       </section>
 
-      {/* ================= GROUP 2: ACCOUNT & CLOUD SYNC ================= */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
-              Account &amp; Cloud sync
-            </h3>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Optional sync across devices. Data remains saved locally in your browser first.
-            </p>
-          </div>
-          {user && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-              {syncStatus === "syncing" && (
-                <>
-                  <Loader2 className="w-3 h-3 text-[var(--accent)] animate-spin" />
-                  <span className="text-[var(--accent)]">Syncing...</span>
-                </>
-              )}
-              {syncStatus === "synced" && (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-[var(--status-normal-dot)]" />
-                  <span className="text-[var(--status-normal-text)]">Synced</span>
-                </>
-              )}
-              {syncStatus === "offline" && (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-[var(--text-muted)]" />
-                  <span className="text-[var(--text-muted)]">Offline</span>
-                </>
-              )}
-              {syncStatus === "error" && (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-[var(--status-abnormal-dot)]" />
-                  <span className="text-[var(--status-abnormal-text)]">Sync error</span>
-                </>
-              )}
-            </div>
-          )}
+      {/* ================= GROUP 1: ABOUT ME ================= */}
+      <section className="space-y-3" aria-labelledby="about-me-heading">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3
+            id="about-me-heading"
+            className="text-[12px] font-semibold text-[var(--text-muted)]"
+          >
+            About me
+          </h3>
+          <span className="text-[11px] text-[var(--text-faint)]">
+            Auto-filled from extracted reports where available
+          </span>
         </div>
 
-        <Card className="divide-y divide-[var(--border-subtle)] overflow-hidden">
-          {!user ? (
-            <div className="p-4 sm:p-5 space-y-3.5">
-              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                Sign in to sync your health reports and metrics across your devices.
-                Signing in is completely optional — Gula works 100% offline without an account.
-              </p>
+        <Card className="p-4 sm:p-5">
+          <div className="flex flex-col-reverse md:flex-row gap-6 md:items-start">
+            {/* Left: Editable & Auto-extracted Profile Fields */}
+            <div className="flex-1 min-w-0 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="profile-full-name"
+                    className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                  >
+                    Full name
+                  </label>
+                  <input
+                    id="profile-full-name"
+                    type="text"
+                    value={profile?.fullName || ""}
+                    onChange={(e) => updateProfile({ fullName: e.target.value })}
+                    placeholder="Extracted or enter your name"
+                    className={fieldInputClass}
+                  />
+                </div>
 
-              <form onSubmit={handleSendMagicLink} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
-                <input
-                  type="email"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="flex-1 px-3 py-2 text-xs rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)]"
-                  disabled={isAuthBusy}
-                  aria-label="Email address"
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  disabled={isAuthBusy || !authEmail.trim()}
-                  icon={isAuthBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                >
-                  Send magic link
-                </Button>
-              </form>
+                <div>
+                  <label
+                    htmlFor="profile-email"
+                    className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                  >
+                    Account email
+                  </label>
+                  <input
+                    id="profile-email"
+                    type="text"
+                    value={user?.email || "Guest mode (not signed in)"}
+                    readOnly
+                    className={`${fieldInputClass} opacity-75 cursor-default`}
+                  />
+                </div>
 
-              <div className="flex items-center gap-3">
-                <div className="flex-1 border-t border-[var(--border-subtle)]" />
-                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">or</span>
-                <div className="flex-1 border-t border-[var(--border-subtle)]" />
-              </div>
+                <div>
+                  <label
+                    htmlFor="profile-age"
+                    className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                  >
+                    Age (years)
+                  </label>
+                  <input
+                    id="profile-age"
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={profile?.age || ""}
+                    onChange={(e) => updateProfile({ age: e.target.value })}
+                    placeholder="Age"
+                    className={fieldInputClass}
+                  />
+                </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full justify-center"
-                onClick={handleSignInGoogle}
-                disabled={isAuthBusy}
-              >
-                Continue with Google
-              </Button>
-            </div>
-          ) : (
-            <div className="p-4 sm:p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center font-bold text-xs uppercase">
-                    {user.email.substring(0, 2)}
+                <div>
+                  <label
+                    htmlFor="profile-sex"
+                    className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                  >
+                    Biological sex
+                  </label>
+                  <select
+                    id="profile-sex"
+                    value={profile?.sex || ""}
+                    onChange={(e) =>
+                      updateProfile({
+                        sex: e.target.value as "" | "Male" | "Female" | "Other",
+                      })
+                    }
+                    className={fieldInputClass}
+                  >
+                    <option value="">Not specified</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="profile-blood-group"
+                    className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                  >
+                    Blood group
+                  </label>
+                  <select
+                    id="profile-blood-group"
+                    value={profile?.bloodGroup || ""}
+                    onChange={(e) => updateProfile({ bloodGroup: e.target.value })}
+                    className={fieldInputClass}
+                  >
+                    <option value="">Select blood group</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label
+                      htmlFor="profile-height"
+                      className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                    >
+                      Height (cm)
+                    </label>
+                    <input
+                      id="profile-height"
+                      type="number"
+                      min={40}
+                      max={250}
+                      value={profile?.heightCm || ""}
+                      onChange={(e) => updateProfile({ heightCm: e.target.value })}
+                      placeholder="cm"
+                      className={fieldInputClass}
+                    />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-[var(--text-primary)]">
-                      {user.email}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-muted)]">
-                      {lastSyncedAt
-                        ? `Last synced ${formatDate(new Date(lastSyncedAt).toISOString().split("T")[0])}`
-                        : "Syncing with private cloud"}
-                    </p>
+                    <label
+                      htmlFor="profile-weight"
+                      className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
+                    >
+                      Weight (kg)
+                    </label>
+                    <input
+                      id="profile-weight"
+                      type="number"
+                      min={10}
+                      max={350}
+                      step="0.1"
+                      value={profile?.weightKg || ""}
+                      onChange={(e) => updateProfile({ weightKg: e.target.value })}
+                      placeholder="kg"
+                      className={fieldInputClass}
+                    />
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<RotateCcw className="w-3.5 h-3.5" />}
-                    onClick={handleSyncNow}
-                    disabled={syncStatus === "syncing"}
-                  >
-                    Sync now
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<LogOut className="w-3.5 h-3.5" />}
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </Button>
-                </div>
               </div>
 
-              <div className="border-t border-[var(--border-subtle)]" />
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                <div>
-                  <h4 className="text-xs font-semibold text-[var(--status-abnormal-text)]">
-                    Delete my account and cloud data
-                  </h4>
-                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    Permanently delete your cloud records, uploaded PDFs in storage, and your account.
-                  </p>
-                </div>
-
-                <Button
-                  variant="danger"
-                  size="sm"
-                  icon={<Trash2 className="w-3.5 h-3.5" />}
-                  onClick={() => setIsDeleteAccountModalOpen(true)}
+              <div>
+                <label
+                  htmlFor="profile-conditions"
+                  className="block text-[11px] font-medium text-[var(--text-muted)] mb-1"
                 >
-                  Delete account
-                </Button>
+                  Conditions, allergies &amp; notes
+                </label>
+                <input
+                  id="profile-conditions"
+                  type="text"
+                  value={profile?.conditions || ""}
+                  onChange={(e) => updateProfile({ conditions: e.target.value })}
+                  placeholder="e.g. Vegetarian, vitamin D supplement, penicillin allergy"
+                  className={fieldInputClass}
+                />
+              </div>
+
+              {/* Extracted Report Snapshot */}
+              <div className="pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--text-muted)]">
+                <span>
+                  <strong className="font-medium text-[var(--text-secondary)]">Latest lab:</strong>{" "}
+                  {latestReport?.labName || "No report uploaded"}
+                </span>
+                <span>
+                  <strong className="font-medium text-[var(--text-secondary)]">Last checkup:</strong>{" "}
+                  {latestReport ? formatDate(latestReport.reportDate) : "—"}
+                </span>
+                {bmiValue && (
+                  <span>
+                    <strong className="font-medium text-[var(--text-secondary)]">BMI:</strong>{" "}
+                    <span className="tabular-nums">{bmiValue}</span>
+                  </span>
+                )}
               </div>
             </div>
-          )}
+
+            {/* Right: Profile Avatar / DP */}
+            <div className="shrink-0 flex flex-col items-center gap-2.5 md:w-44 md:border-l md:border-[var(--border-subtle)] md:pl-6 md:pt-1">
+              <div
+                aria-label="Profile avatar"
+                className="w-24 h-24 rounded-full overflow-hidden border border-[var(--border-strong)] shadow-[var(--shadow-sm)] bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-rose-500/15 flex items-center justify-center shrink-0"
+              >
+                {effectiveAvatar ? (
+                  <img
+                    src={effectiveAvatar}
+                    alt="Profile picture"
+                    className="w-full h-full object-cover"
+                  />
+                ) : avatarInitials ? (
+                  <span className="text-xl font-semibold tracking-tight text-[var(--accent)] select-none">
+                    {avatarInitials}
+                  </span>
+                ) : (
+                  <User className="w-10 h-10 text-[var(--accent)]/80" strokeWidth={1.6} />
+                )}
+              </div>
+
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                aria-label="Upload profile photo"
+                className="hidden"
+              />
+
+              <div className="flex flex-col items-center gap-1 w-full">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  icon={<Camera className="w-3.5 h-3.5" />}
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="w-full justify-center"
+                >
+                  {profile?.avatarDataUrl ? "Change photo" : "Upload DP"}
+                </Button>
+
+                {profile?.avatarDataUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      resetProfileAvatar();
+                      toast("Reverted to default avatar.", "info");
+                    }}
+                    className="text-[11px] h-6 px-2 text-[var(--text-muted)]"
+                  >
+                    Use default
+                  </Button>
+                )}
+              </div>
+
+              <p className="text-[10.5px] text-[var(--text-faint)] text-center leading-tight">
+                {profile?.avatarDataUrl
+                  ? "Custom device photo"
+                  : user?.avatarUrl
+                  ? "Account photo"
+                  : "Default avatar"}
+              </p>
+            </div>
+          </div>
         </Card>
       </section>
 
-      {/* ================= GROUP: UNDO LAST UPLOAD (SEPARATE GROUP) ================= */}
+      {/* ================= GROUP: UNDO LAST UPLOAD ================= */}
       {activeReports.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
@@ -496,7 +766,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
         </section>
       )}
 
-      {/* ================= GROUP 3: UPLOADED REPORTS ================= */}
+      {/* ================= GROUP: UPLOADED REPORTS ================= */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
@@ -633,7 +903,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
         )}
       </section>
 
-      {/* ================= GROUP 4: UNITS PREFERENCE ================= */}
+      {/* ================= GROUP: UNITS PREFERENCE ================= */}
       <section className="space-y-3">
         <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
           Units preference
@@ -683,7 +953,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
         </Card>
       </section>
 
-      {/* ================= GROUP 5: DATA & BACKUP ================= */}
+      {/* ================= GROUP: DATA & BACKUP ================= */}
       <section className="space-y-3">
         <h3 className="text-[12px] font-semibold text-[var(--text-muted)]">
           Data
@@ -696,11 +966,32 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
                 Export my data
               </h4>
               <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                Download a full backup of all checkups and biomarker readings.
+                Download a physician-ready Gula PDF report (cover page, ranges &amp; trend graphs) or raw JSON/CSV backup.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="primary"
+                size="sm"
+                className="!bg-[#EC4899] hover:!bg-[#DB2777] !text-white"
+                icon={
+                  isExportingPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <img
+                      src="/logo.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="w-3.5 h-3.5 object-contain rounded-full bg-white p-px"
+                    />
+                  )
+                }
+                disabled={isExportingPdf || activeReports.length === 0}
+                onClick={handleExportDoctorPdf}
+              >
+                {isExportingPdf ? "Exporting..." : "Export pdf"}
+              </Button>
               <Button
                 variant="secondary"
                 size="sm"
@@ -740,12 +1031,65 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
               Delete all data
             </Button>
           </div>
+
+          {/* Delete Cloud Account (shown only when signed in) */}
+          {user && (
+            <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold text-[var(--status-abnormal-text)]">
+                  Delete account &amp; cloud data
+                </h4>
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                  Permanently remove your encrypted cloud records, uploaded PDFs, and account.
+                </p>
+              </div>
+
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="w-3.5 h-3.5" />}
+                onClick={() => setIsDeleteAccountModalOpen(true)}
+              >
+                Delete account
+              </Button>
+            </div>
+          )}
         </Card>
       </section>
 
-      {/* Honest Footer Line */}
+      {/* ================= GROUP: PRIVACY POLICY ================= */}
+      <section className="space-y-3" aria-labelledby="privacy-policy-heading">
+        <div className="flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-[var(--status-normal-dot)]" />
+          <h3
+            id="privacy-policy-heading"
+            className="text-[12px] font-semibold text-[var(--text-muted)]"
+          >
+            Privacy policy
+          </h3>
+        </div>
+        <Card className="p-4 sm:p-5">
+          <ul className="space-y-2.5 text-xs text-[var(--text-secondary)] leading-relaxed">
+            {PRIVACY_POLICY_POINTS.map((item, idx) => (
+              <li key={item.title} className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] text-[10.5px] font-semibold flex items-center justify-center shrink-0 mt-0.5 tabular-nums">
+                  {idx + 1}
+                </span>
+                <span>
+                  <strong className="font-semibold text-[var(--text-primary)]">
+                    {item.title}:
+                  </strong>{" "}
+                  {item.body}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </section>
+
+      {/* Honest Privacy Footer Line */}
       <footer className="pt-6 border-t border-[var(--border-subtle)] text-center text-xs text-[var(--text-muted)] leading-relaxed">
-        Your data stays on this device and, if signed in, in your private cloud account. For information only, not medical advice.
+        Your health data is encrypted and securely stored. We never sell it or use it for ads. For information only, not medical advice.
       </footer>
 
       {/* ================= MODAL: UNDO CONFIRMATION SHEET ================= */}
@@ -910,7 +1254,7 @@ export function SettingsView({ onDataChanged }: SettingsViewProps) {
             </div>
 
             <div className="flex items-center justify-between text-xs text-[var(--text-muted)] pt-2 border-t border-[var(--border-subtle)]">
-              <span>Original file stored locally in browser</span>
+              <span>Original PDF stored in encrypted storage</span>
               <Button
                 variant="secondary"
                 size="sm"

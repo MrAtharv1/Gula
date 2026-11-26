@@ -357,6 +357,24 @@ describe("Phase 5: Name Normalization and Metadata Extraction", () => {
       expect(output.results.some((r) => r.metricKey === "ag_ratio")).toBe(true);
       expect(output.results.some((r) => r.metricKey === "chol_hdl_ratio")).toBe(true);
       expect(output.results.some((r) => r.metricKey === "mentzer_index")).toBe(true);
+
+      // Verify qualitative urine results preserve valueText instead of losing it to numeric 0
+      expect(urineProtein?.valueText).toBeTruthy();
+    });
+
+    it("aligns METRIC_DICTIONARY keys (CRP, Folate, ApoB, Hormones) in parser and aliases rdw_cv/blood_urea/protein_total", async () => {
+      const { METRIC_KEY_ALIASES, getMetricDefinition } = await import(
+        "@/lib/db/metricDictionary"
+      );
+      expect(METRIC_KEY_ALIASES.rdw_cv).toBe("rdw");
+      expect(METRIC_KEY_ALIASES.blood_urea).toBe("urea");
+      expect(METRIC_KEY_ALIASES.protein_total).toBe("total_protein");
+      expect(getMetricDefinition("rdw_cv")?.canonicalKey).toBe("rdw");
+
+      expect(normalizeMetric("hs-CRP").canonicalKey).toBe("crp");
+      expect(normalizeMetric("Folic Acid").canonicalKey).toBe("folate");
+      expect(normalizeMetric("Apolipoprotein B").canonicalKey).toBe("apob");
+      expect(normalizeMetric("Total Testosterone").canonicalKey).toBe("testosterone_total");
     });
   });
 });

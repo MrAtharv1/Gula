@@ -61,7 +61,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
       expect(manifestContent.short_name).toBe("Gula");
       expect(manifestContent.display).toBe("standalone");
       expect(manifestContent.start_url).toBe("/");
-      expect(manifestContent.theme_color).toBe("#2563eb");
+      expect(manifestContent.theme_color).toBe("#EC4899");
       expect(manifestContent.icons).toBeDefined();
       expect(manifestContent.icons.length).toBeGreaterThanOrEqual(2);
 
@@ -149,7 +149,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
       expect(mobileNav).not.toBeNull();
       expect(screen.getAllByText("Home")).toBeDefined();
       expect(screen.getAllByText("Trends")).toBeDefined();
-      expect(screen.getAllByText("Settings")).toBeDefined();
+      expect(screen.getAllByText("My Account")).toBeDefined();
     });
 
     it("renders desktop sidebar navigation structure at 768px (iPad)", () => {
@@ -164,7 +164,7 @@ describe("Phase 7: Polish, PWA, and QA Verification", () => {
       const desktopSidebar = container.querySelector("aside");
       expect(desktopSidebar).not.toBeNull();
       expect(desktopSidebar?.textContent).toContain("Gula");
-      expect(desktopSidebar?.textContent).toContain("Settings");
+      expect(desktopSidebar?.textContent).toContain("My Account");
     });
   });
 

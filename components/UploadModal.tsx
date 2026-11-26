@@ -19,8 +19,14 @@ import { parseReportText } from "@/lib/parser/reportParser";
 import { classifyDocumentPages } from "@/lib/parser/pageClassifier";
 import { ParsedBiomarker, ParsedReportResult } from "@/lib/parser/types";
 import { matchMetric, evaluateResultFlag } from "@/lib/db/metricDictionary";
-import { addReport } from "@/lib/db";
+import { addReport, getActiveReports, hasReachedGuestReportLimit } from "@/lib/db";
 import { MetricCategory } from "@/lib/db/schema";
+import { useSyncStore } from "@/lib/store/syncStore";
+import { usePreferenceStore } from "@/lib/store/preferenceStore";
+import {
+  extractProfileHintsFromText,
+  ExtractedProfileHints,
+} from "@/lib/utils/profileExtractor";
 import { checkForDuplicateReport } from "@/lib/db/duplicateDetection";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
@@ -31,6 +37,7 @@ interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onRequireAuth?: () => void;
 }
 
 type UploadStep =
@@ -54,7 +61,7 @@ const CLINICAL_CATEGORIES: MetricCategory[] = [
   "Other",
 ];
 
-export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, onSuccess, onRequireAuth }: UploadModalProps) {
   const [step, setStep] = useState<UploadStep>("pick");
   const [file, setFile] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -74,9 +81,14 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const [savedCount, setSavedCount] = useState<number>(0);
   const [showSkippedDetails, setShowSkippedDetails] = useState<boolean>(false);
 
-  // Date editing state
+  // Date & Lab name editing state
   const [customDate, setCustomDate] = useState<string>("");
   const [isEditingDate, setIsEditingDate] = useState<boolean>(false);
+  const [customLabName, setCustomLabName] = useState<string>("");
+  const [isEditingLab, setIsEditingLab] = useState<boolean>(false);
+
+  // Extracted profile hints (name, age, sex) — only merged into About Me upon save
+  const [profileHints, setProfileHints] = useState<ExtractedProfileHints | null>(null);
 
   // Drag state
   const [dragActive, setDragActive] = useState(false);
@@ -99,6 +111,9 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     setShowSkippedDetails(false);
     setCustomDate("");
     setIsEditingDate(false);
+    setCustomLabName("");
+    setIsEditingLab(false);
+    setProfileHints(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -189,6 +204,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
       // 3. Parse report text through layout-adaptive extraction
       const parsed = parseReportText(extracted, extracted.pages.length);
       const testCount = (parsed.results || parsed.biomarkers || []).length;
+      setProfileHints(extractProfileHintsFromText(extracted.fullText || ""));
 
       setProgressPercent(100);
       setProgressMessage(`Found ${testCount} tests`);
@@ -208,6 +224,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
       const detectedDate =
         parsed.reportDate || parsed.date || new Date().toISOString().split("T")[0];
       setCustomDate(detectedDate);
+      setCustomLabName(parsed.labName && parsed.labName !== "Unknown lab" ? parsed.labName : "");
 
       // Brief visual pause so the user sees progress completion
       await new Promise((r) => setTimeout(r, 220));
@@ -264,16 +281,32 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
     if (!file || !parsedResult) return;
 
     try {
+      const currentUser = useSyncStore.getState().user;
+      if (!currentUser) {
+        const active = await getActiveReports();
+        if (hasReachedGuestReportLimit(active.length, false)) {
+          setErrorMessage("Guest mode allows up to 2 reports. Sign in to save more reports.");
+          if (onRequireAuth) {
+            handleClose();
+            onRequireAuth();
+          }
+          return;
+        }
+      }
+
       const activeRows = biomarkersToSave.filter((b) => b.selected !== false);
       const resultsToInsert = activeRows.map((b) => {
         const name = b.displayName || b.name || "";
         const metricDef = matchMetric(name);
-        const flag = evaluateResultFlag(b.value, b.refLow, b.refHigh);
+        const flag = b.valueText
+          ? b.flag || "normal"
+          : evaluateResultFlag(b.value, b.refLow, b.refHigh);
         const resolvedKey = b.metricKey || b.canonicalKey || metricDef?.canonicalKey || "unknown";
         return {
           metricKey: resolvedKey,
           displayName: name,
           value: b.value,
+          ...(b.valueText ? { valueText: b.valueText } : {}),
           unit: b.unit,
           refLow: b.refLow,
           refHigh: b.refHigh,
@@ -291,7 +324,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
       await addReport(
         {
           fileName: file.name,
-          labName: parsedResult.labName,
+          labName: customLabName.trim() || parsedResult.labName,
           reportDate: finalDate,
           uploadedAt: Date.now(),
           status: "active",
@@ -300,6 +333,10 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
         },
         resultsToInsert
       );
+
+      if (profileHints && (profileHints.fullName || profileHints.age || profileHints.sex)) {
+        usePreferenceStore.getState().mergeExtractedProfile(profileHints);
+      }
 
       const count = resultsToInsert.length;
       setSavedCount(count);
@@ -394,13 +431,13 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
                 Choose a PDF or drag it here
               </p>
               <p className="text-[12px] text-[var(--text-muted)] max-w-xs leading-relaxed">
-                PDF only, up to 25 MB. Parsed locally on your device.
+                PDF only, up to 25 MB. Parsed right in your browser.
               </p>
             </div>
 
             <div className="flex items-center justify-center gap-1.5 mt-4 text-[11px] text-[var(--text-muted)]">
               <ShieldCheck className="w-3.5 h-3.5 text-[var(--status-normal-dot)]" />
-              <span>Zero server uploads. 100% private and on-device.</span>
+              <span>Encrypted &amp; securely stored. Guest mode supports up to 2 reports.</span>
             </div>
           </div>
         )}
@@ -443,7 +480,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
                       Ready to parse
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                      All tests, values, and reference ranges are processed locally.
+                      All tests, values, and reference ranges are extracted securely.
                     </p>
                   </div>
 
@@ -508,7 +545,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
                 {progressMessage}
               </h3>
               <p className="text-[12px] text-[var(--text-muted)] max-w-xs">
-                Analyzing test names, numeric results, and reference intervals locally.
+                Analyzing test names, numeric results, and reference intervals.
               </p>
             </div>
 
@@ -527,15 +564,46 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
           <div className="space-y-4">
             {/* Header Strip: File & Prominent Test Date with Edit Pencil */}
             <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <FileText className="w-4 h-4 text-[var(--accent)] shrink-0" />
                 <span className="text-[13px] font-medium text-[var(--text-primary)] truncate max-w-[200px] sm:max-w-xs">
                   {file.name}
                 </span>
-                {parsedResult.labName && parsedResult.labName !== "Unknown lab" && (
-                  <span className="text-[11px] text-[var(--text-muted)] truncate hidden sm:inline">
-                    • {parsedResult.labName}
-                  </span>
+                <span className="text-[11px] text-[var(--text-faint)]">•</span>
+                {isEditingLab ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={customLabName}
+                      onChange={(e) => setCustomLabName(e.target.value)}
+                      placeholder="Enter lab name"
+                      aria-label="Lab name"
+                      className="px-2 py-0.5 rounded-md bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] w-36"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setIsEditingLab(false)}
+                      className="text-[11px] px-2 py-0.5"
+                    >
+                      Save
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-[11.5px] text-[var(--text-muted)] truncate max-w-[160px]">
+                      {customLabName.trim() || parsedResult.labName || "Unknown lab"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingLab(true)}
+                      className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded cursor-pointer transition-colors"
+                      aria-label="Edit lab name"
+                      title="Edit lab name"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -709,7 +777,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
                           {/* Value, Unit & Status Flag */}
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="font-semibold text-[var(--text-primary)] tabular-nums">
-                              {b.value ?? 0}
+                              {b.valueText || (b.value ?? 0)}
                             </span>
                             <span className="text-[11px] text-[var(--text-muted)] min-w-[36px]">
                               {b.unit || ""}

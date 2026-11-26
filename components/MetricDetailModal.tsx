@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Modal } from "./ui/Modal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { RangeBar } from "./ui/RangeBar";
 import { BiomarkerTrendChart } from "./BiomarkerTrendChart";
 import { LatestResultSummary, ResultWithDate } from "@/lib/db/schema";
-import { METRIC_DICTIONARY } from "@/lib/db/metricDictionary";
 import { convertMetricUnit } from "@/lib/db/unitConversion";
+import { useTranslation, getLocalizedFlagLabel, getLocalizedPanelName } from "@/lib/i18n/translations";
+import { getLocalizedMetricName, getLocalizedMetricExplanation } from "@/lib/i18n/metricTranslations";
 import { ArrowUp, ArrowDown, Calendar, Building2, Info, ArrowLeftRight } from "lucide-react";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
@@ -28,21 +29,53 @@ export function MetricDetailModal({
   isOpen,
   onClose,
 }: MetricDetailModalProps) {
+  const { t, language } = useTranslation();
   const [useConvertedUnit, setUseConvertedUnit] = useState(false);
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const descRef = useRef<HTMLParagraphElement>(null);
 
   const latestResult = summary?.latestResult;
   const previousResult = summary?.previousResult;
   const changeValue = summary?.changeValue;
   const comparisonRelation = summary?.comparisonRelation || "since";
-  const displayName = summary?.displayName || "";
+  const rawDisplayName = summary?.displayName || "";
   const category = summary?.category || "Other";
   const metricKey = summary?.metricKey || "";
-  const dictDef = metricKey ? METRIC_DICTIONARY[metricKey] : undefined;
 
-  // Reset unit conversion toggle whenever a different marker or report opens
+  const displayName = useMemo(
+    () => getLocalizedMetricName(metricKey, rawDisplayName, language),
+    [metricKey, rawDisplayName, language]
+  );
+
+  const categoryLabel = useMemo(
+    () => (language === "en" ? category : getLocalizedPanelName(category, language)),
+    [category, language]
+  );
+
+  const laymanExplanation = useMemo(
+    () => getLocalizedMetricExplanation(metricKey, rawDisplayName, category, language),
+    [metricKey, rawDisplayName, category, language]
+  );
+
+  // Reset toggles whenever a different marker or report opens
   useEffect(() => {
     setUseConvertedUnit(false);
+    setIsDescExpanded(false);
   }, [metricKey, latestResult?.reportId, isOpen]);
+
+  // Measure if explanation wraps past 1 line
+  useEffect(() => {
+    const el = descRef.current;
+    if (!el || isDescExpanded) return;
+    const checkOverflow = () => {
+      const overflowing = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 2;
+      setIsOverflowing(overflowing);
+    };
+    checkOverflow();
+    window.addEventListener("resize", checkOverflow);
+    return () => window.removeEventListener("resize", checkOverflow);
+  }, [laymanExplanation, isOpen, isDescExpanded]);
 
   const isConvertible = Boolean(
     latestResult &&
@@ -104,22 +137,18 @@ export function MetricDetailModal({
 
   if (!summary || !latestResult) return null;
 
-  const statusLabel =
-    latestResult.flag === "high"
-      ? "High"
-      : latestResult.flag === "low"
-      ? "Low"
-      : latestResult.flag === "borderline"
-      ? "Borderline"
-      : "Normal";
+  const statusLabel = getLocalizedFlagLabel(latestResult.flag, language);
 
   const modalSubtitle = isLatestReport
-    ? `${category} • Latest reading`
-    : `${category} • ${formatDate(latestResult.reportDate)} report`;
+    ? `${categoryLabel} • ${t.latestReading}`
+    : `${categoryLabel} • ${formatDate(latestResult.reportDate)} ${t.reportSuffix}`;
 
   const comparisonDateText = previousResult?.reportDate
-    ? `${comparisonRelation === "vs" ? "vs" : "since"} ${formatDate(previousResult.reportDate)}`
-    : "vs previous";
+    ? `${comparisonRelation === "vs" ? t.vs : t.since} ${formatDate(previousResult.reportDate)}`
+    : t.vsPrevious;
+
+  // Show "Read more" if DOM overflows OR text exceeds ~55 chars (ensures consistency across desktop/mobile & JSDOM)
+  const needsReadMore = isOverflowing || laymanExplanation.length > 55;
 
   return (
     <Modal
@@ -135,7 +164,7 @@ export function MetricDetailModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <span className="text-[12px] font-medium text-[var(--text-muted)] block mb-1">
-                {category}
+                {categoryLabel}
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-[28px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] tabular-nums">
@@ -160,7 +189,7 @@ export function MetricDetailModal({
                   className="text-xs h-7 px-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1"
                 >
                   <ArrowLeftRight className="w-3 h-3" />
-                  <span>Switch to {useConvertedUnit ? latestResult.unit : alternateUnit}</span>
+                  <span>{t.switchTo} {useConvertedUnit ? latestResult.unit : alternateUnit}</span>
                 </Button>
               )}
             </div>
@@ -206,27 +235,53 @@ export function MetricDetailModal({
                     <span>-{Math.abs(displayChangeValue)} {comparisonDateText}</span>
                   </>
                 ) : (
-                  <span>No change {comparisonDateText}</span>
+                  <span>{t.noChange} {comparisonDateText}</span>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Clinical Description from Dictionary */}
-        {dictDef?.description && (
-          <div className="p-3.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-start gap-2.5 text-[12px]">
-            <Info className="w-4 h-4 text-[var(--text-muted)] shrink-0 mt-0.5" />
-            <p className="text-[var(--text-secondary)] leading-relaxed">
-              {dictDef.description}
-            </p>
-          </div>
-        )}
+        {/* Layman-Friendly Explainer Info Row with Light Yellow Fading Gradient & Read More */}
+        <div
+          className={cn(
+            "px-3.5 py-2.5 rounded-xl border flex gap-2.5 text-[12px]",
+            isDescExpanded ? "items-start" : "items-center",
+            "bg-gradient-to-r from-amber-50/95 via-amber-50/50 to-transparent",
+            "dark:from-amber-400/[0.11] dark:via-amber-400/[0.04] dark:to-transparent",
+            "border-amber-200/75 dark:border-amber-400/20"
+          )}
+        >
+          <Info
+            className={cn(
+              "w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0",
+              isDescExpanded && "mt-0.5"
+            )}
+          />
+          <p
+            ref={descRef}
+            className={cn(
+              "flex-1 min-w-0 text-[var(--text-secondary)] leading-relaxed",
+              !isDescExpanded && "line-clamp-1"
+            )}
+          >
+            {laymanExplanation}
+          </p>
+          {needsReadMore && (
+            <button
+              type="button"
+              onClick={() => setIsDescExpanded((prev) => !prev)}
+              className="shrink-0 text-[11px] font-semibold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer select-none whitespace-nowrap"
+            >
+              {isDescExpanded ? t.showLess : t.readMore}
+            </button>
+          )}
+        </div>
 
         {/* Interactive Trend Chart — full longitudinal view, consistent across every dated report */}
         <div>
           <h4 className="text-[12px] font-medium text-[var(--text-muted)] mb-2.5">
-            Historical trend ({chartHistory.length} {chartHistory.length === 1 ? "record" : "records"})
+            {t.historicalTrend} ({chartHistory.length} {chartHistory.length === 1 ? t.recordSingular : t.recordPlural})
           </h4>
           <BiomarkerTrendChart
             history={chartHistory}
@@ -241,18 +296,11 @@ export function MetricDetailModal({
         {history.length > 1 && (
           <div className="space-y-2">
             <h4 className="text-[12px] font-medium text-[var(--text-muted)]">
-              Recorded results
+              {t.recordedResults}
             </h4>
             <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden divide-y divide-[var(--border-subtle)] bg-[var(--bg-card)]">
               {history.map((record) => {
-                const recStatusLabel =
-                  record.flag === "high"
-                    ? "High"
-                    : record.flag === "low"
-                    ? "Low"
-                    : record.flag === "borderline"
-                    ? "Borderline"
-                    : "Normal";
+                const recStatusLabel = getLocalizedFlagLabel(record.flag, language);
                 const isSelectedRow =
                   !isLatestReport &&
                   record.reportId === latestResult.reportId &&
@@ -296,7 +344,7 @@ export function MetricDetailModal({
         {/* Action Button */}
         <div className="flex justify-end pt-2">
           <Button variant="secondary" size="sm" onClick={onClose}>
-            Done
+            {t.done}
           </Button>
         </div>
       </div>

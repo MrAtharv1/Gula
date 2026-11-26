@@ -1,17 +1,21 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Home,
   TrendingUp,
-  Settings,
+  User,
   Plus,
   LogIn,
   ChevronRight,
   Upload,
+  Globe,
+  Check,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useSyncStore } from "@/lib/store/syncStore";
+import { usePreferenceStore } from "@/lib/store/preferenceStore";
+import { APP_LANGUAGES, useTranslation } from "@/lib/i18n/translations";
 import { cn } from "@/lib/utils/cn";
 
 export type NavTab = "home" | "trends" | "settings";
@@ -34,24 +38,55 @@ export function Navbar({
   reportsCount,
 }: NavbarProps) {
   const { user, syncStatus } = useSyncStore();
+  const profile = usePreferenceStore((s) => s.profile);
+  const { t, language, setLanguage, currentLangOption } = useTranslation();
+
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+
+  // Sync <html lang="..."> when language preference changes
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = language;
+    }
+  }, [language]);
+
+  // Close language popover on outside click or Escape
+  useEffect(() => {
+    if (!langMenuOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) {
+        setLangMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLangMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [langMenuOpen]);
 
   const navTabs = [
     {
       id: "home" as NavTab,
-      label: "Home",
+      label: t.home,
       icon: Home,
       badge: markersCount && markersCount > 0 ? markersCount : undefined,
     },
     {
       id: "trends" as NavTab,
-      label: "Trends",
+      label: t.trends,
       icon: TrendingUp,
       badge: reportsCount && reportsCount > 0 ? reportsCount : undefined,
     },
     {
       id: "settings" as NavTab,
-      label: "Settings",
-      icon: Settings,
+      label: t.settings,
+      icon: User,
     },
   ];
 
@@ -68,16 +103,21 @@ export function Navbar({
       {/* ── Desktop Sidebar ──────────────────────────────────── */}
       <aside
         className={cn(
-          "hidden md:flex flex-col",
+          "hidden md:flex flex-col relative z-40",
           "w-60 shrink-0",
           "border-r border-[var(--border-subtle)]",
           "bg-[var(--bg-primary)] dark:bg-[#0b0b0e]/90 dark:backdrop-blur-xl",
-          "overflow-hidden",
+          "overflow-visible",
           "px-3 py-3.5"
         )}
       >
-        {/* Brand header — logo + minimalist tagline */}
-        <div className="flex flex-col items-center text-center px-2 pt-1 pb-4">
+        {/* Brand header — clickable logo takes user to homepage */}
+        <button
+          type="button"
+          onClick={() => onSelectTab("home")}
+          aria-label="Go to homepage"
+          className="w-full flex flex-col items-center text-center px-2 pt-1 pb-4 rounded-xl hover:bg-[var(--bg-hover)]/50 transition-colors cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+        >
           <span className="sr-only">Gula</span>
           <img
             src="/logo.png"
@@ -88,9 +128,9 @@ export function Navbar({
             className="mt-1.5 text-[12.5px] font-medium tracking-[0.02em] text-[var(--text-secondary)] leading-snug"
             style={{ fontFamily: "var(--font-karla), var(--font-geist-sans), sans-serif" }}
           >
-            Your Privacy Matters
+            {t.tagline}
           </p>
-        </div>
+        </button>
 
         {/* Quick upload command button */}
         <div className="mb-5">
@@ -109,7 +149,7 @@ export function Navbar({
           >
             <span className="flex items-center gap-2">
               <Upload className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-              <span>Upload report</span>
+              <span>{t.uploadReport}</span>
             </span>
             <Plus className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
           </button>
@@ -118,7 +158,7 @@ export function Navbar({
         {/* Workspace Navigation */}
         <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
           <p className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wider text-[var(--text-faint)]">
-            Workspace
+            {t.workspace}
           </p>
           <nav className="space-y-0.5" aria-label="Main navigation">
             {navTabs.map((item) => {
@@ -178,12 +218,111 @@ export function Navbar({
           </nav>
         </div>
 
-        {/* Bottom Stack: 1) Theme Toggle (Light / Auto / Dark)  2) Login / Sign up at the very end */}
+        {/* Bottom Stack:
+            1) Language switcher button with sideway up/right menu (above Theme)
+            2) Theme Toggle (Light / Auto / Dark)
+            3) Log in / Sign up at the very end */}
         <div className="mt-auto pt-3 border-t border-[var(--border-subtle)] space-y-2.5">
+          {/* Language Picker — sideway menu */}
+          <div ref={langMenuRef} className="relative space-y-1">
+            <span className="block px-1 text-[10.5px] font-medium uppercase tracking-wider text-[var(--text-faint)]">
+              {t.language}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLangMenuOpen((o) => !o)}
+              aria-haspopup="listbox"
+              aria-expanded={langMenuOpen}
+              aria-label={`Change app language, current ${currentLangOption.name}`}
+              className={cn(
+                "w-full flex items-center justify-between gap-2 px-2.5 h-8 rounded-lg",
+                "bg-[var(--bg-card)] dark:bg-white/[0.04]",
+                "border border-[var(--border-subtle)] hover:border-[var(--border-hover)]",
+                "hover:bg-[var(--bg-card-subtle)]/70 dark:hover:bg-white/[0.07]",
+                "shadow-[var(--shadow-sm)] text-[12px] font-medium text-[var(--text-primary)]",
+                "transition-all duration-[100ms] ease-out cursor-pointer select-none",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+              )}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <Globe className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                <span className="truncate">
+                  {currentLangOption.nativeName}
+                  {currentLangOption.code !== "en" && (
+                    <span className="text-[var(--text-faint)] font-normal ml-1">
+                      ({currentLangOption.name})
+                    </span>
+                  )}
+                </span>
+              </span>
+              <ChevronRight
+                className={cn(
+                  "w-3.5 h-3.5 text-[var(--text-faint)] shrink-0 transition-transform duration-[100ms]",
+                  langMenuOpen && "translate-x-0.5 text-[var(--accent)]"
+                )}
+              />
+            </button>
+
+            {/* Sideways upward menu */}
+            {langMenuOpen && (
+              <div
+                role="listbox"
+                aria-label="App language"
+                className={cn(
+                  "absolute left-full bottom-0 ml-2.5 z-50",
+                  "w-[260px] rounded-xl p-1.5",
+                  "bg-[var(--bg-card)] border border-[var(--border-strong)]",
+                  "shadow-[var(--shadow-xl)]",
+                  "animate-in fade-in slide-in-from-left-1 duration-[120ms]"
+                )}
+              >
+                <div className="px-2 py-1 text-[10.5px] font-medium uppercase tracking-wider text-[var(--text-faint)]">
+                  Select language
+                </div>
+                <div className="grid grid-cols-2 gap-1 max-h-[280px] overflow-y-auto pt-0.5">
+                  {APP_LANGUAGES.map((langOpt) => {
+                    const isSelected = langOpt.code === language;
+                    return (
+                      <button
+                        key={langOpt.code}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setLanguage(langOpt.code);
+                          setLangMenuOpen(false);
+                        }}
+                        className={cn(
+                          "flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-left",
+                          "transition-colors duration-[80ms] cursor-pointer select-none",
+                          isSelected
+                            ? "bg-[var(--accent-subtle)] text-[var(--text-primary)]"
+                            : "hover:bg-[var(--bg-hover)] text-[var(--text-primary)]"
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-[12px] font-medium leading-tight truncate">
+                            {langOpt.nativeName}
+                          </span>
+                          <span className="block text-[10px] text-[var(--text-faint)] leading-tight truncate">
+                            {langOpt.name}
+                          </span>
+                        </span>
+                        {isSelected && (
+                          <Check className="w-3 h-3 text-[var(--accent)] shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Theme Switcher (Light / Auto / Dark) */}
           <div className="space-y-1">
             <span className="block px-1 text-[10.5px] font-medium uppercase tracking-wider text-[var(--text-faint)]">
-              Appearance
+              {t.appearance}
             </span>
             <ThemeToggle compact />
           </div>
@@ -205,12 +344,20 @@ export function Navbar({
             {user ? (
               <>
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-muted)] text-[var(--accent)] flex items-center justify-center text-[11px] font-semibold uppercase shrink-0">
-                    {user.email.substring(0, 2)}
-                  </div>
+                  {profile?.avatarDataUrl || user.avatarUrl ? (
+                    <img
+                      src={profile?.avatarDataUrl || user.avatarUrl}
+                      alt={profile?.fullName || user.email}
+                      className="w-7 h-7 rounded-full object-cover border border-[var(--border-subtle)] shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-muted)] text-[var(--accent)] flex items-center justify-center text-[11px] font-semibold uppercase shrink-0">
+                      {(profile?.fullName || user.email).substring(0, 2)}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="text-[12px] font-medium text-[var(--text-primary)] truncate leading-tight">
-                      {user.email}
+                      {profile?.fullName || user.email}
                     </p>
                     <p className="text-[10.5px] text-[var(--text-faint)] flex items-center gap-1 mt-0.5 leading-tight">
                       <span
@@ -240,10 +387,10 @@ export function Navbar({
                   </div>
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold text-[var(--text-primary)] leading-tight truncate">
-                      Log in / Sign up
+                      {t.loginSignup}
                     </p>
                     <p className="text-[10.5px] text-[var(--text-faint)] leading-tight mt-0.5 truncate">
-                      Sync across devices
+                      {t.syncAcrossDevices}
                     </p>
                   </div>
                 </div>
@@ -295,7 +442,7 @@ export function Navbar({
         {/* FAB */}
         <button
           onClick={onOpenUpload}
-          aria-label="Add report"
+          aria-label={t.uploadReport}
           className={cn(
             "flex flex-col items-center justify-center",
             "-mt-5 mb-1",

@@ -159,6 +159,60 @@ describe("Phase 6: Settings and Undo Engine", () => {
       expect(lines[1]).toContain("CsvTest.pdf");
       expect(lines[1]).toContain("Fasting Glucose");
     });
+
+    it("builds doctor-readable PDF report with Gula cover page, date format 10 Oct 2020, sparklines, and omits zero/empty rows", async () => {
+      await addReport(createDummyReport("DoctorOct.pdf", "2020-10-10", 2), [
+        ...dummyResults(108),
+        {
+          metricKey: "basophils",
+          displayName: "Basophils",
+          value: 0,
+          unit: "%",
+          refLow: 0,
+          refHigh: 2,
+          flag: "normal",
+          category: "Blood",
+        },
+      ]);
+      await addReport(createDummyReport("DoctorJan.pdf", "2025-01-12", 1), dummyResults(94));
+
+      const {
+        buildDoctorReportModel,
+        generateDoctorReportPdfBlob,
+        formatDoctorReferenceRange,
+        formatDoctorDate,
+      } = await import("@/lib/utils/doctorPdfExport");
+      const { getDashboardData } = await import("@/lib/db");
+      const data = await getDashboardData();
+
+      expect(formatDoctorDate("2020-10-10")).toBe("10 Oct 2020");
+
+      const model = buildDoctorReportModel(data.reports, data.allSummaries);
+      expect(model.totalMetrics).toBe(1);
+      expect(model.uniqueDates).toEqual(["2020-10-10", "2025-01-12"]);
+      // Zero-only row (Basophils = 0 across all dates) is omitted
+      expect(model.panels.flatMap((p) => p.rows).some((r) => r.metricKey === "basophils")).toBe(false);
+      expect(model.panels[0].rows[0].referenceRange).toBe(
+        formatDoctorReferenceRange(data.allSummaries.find((s) => s.metricKey === "glucose_fasting")!)
+      );
+      expect(model.panels[0].rows[0].referenceRange).toContain("70 - 99");
+
+      const pdfOut = await generateDoctorReportPdfBlob({
+        profile: {
+          fullName: "Riya Verma",
+          age: "30",
+          sex: "Female",
+          bloodGroup: "O+",
+          heightCm: "164",
+          weightKg: "58",
+          conditions: "None",
+          avatarDataUrl: "",
+        },
+        accountEmail: "riya@example.com",
+      });
+      expect(pdfOut.fileName).toMatch(/^gula-doctor-report-.*\.pdf$/);
+      expect(pdfOut.blob.size).toBeGreaterThan(1500);
+    });
   });
 
   describe("Units Preference Store", () => {
@@ -178,17 +232,21 @@ describe("Phase 6: Settings and Undo Engine", () => {
     });
   });
 
-  describe("SettingsView UI Component", () => {
-    it("renders appearance, uploaded reports, units, and calm footer", async () => {
+  describe("My Account (SettingsView) UI Component", () => {
+    it("renders About me, avatar DP, uploaded reports, units, privacy policy, and omits appearance/cloud sync", async () => {
       await addReport(createDummyReport("BloodTest_2024.pdf", "2024-04-15", 1), dummyResults(92));
 
       render(<SettingsView onDataChanged={() => {}} />);
 
-      // Appearance
-      expect(screen.getByText("Appearance")).toBeDefined();
-      expect(screen.getByText("Light")).toBeDefined();
-      expect(screen.getByText("Dark")).toBeDefined();
-      expect(screen.getByText("Auto")).toBeDefined();
+      // About me & Avatar DP on top
+      expect(screen.getByText("About me")).toBeDefined();
+      expect(screen.getByLabelText("Full name")).toBeDefined();
+      expect(screen.getByLabelText("Profile avatar")).toBeDefined();
+      expect(screen.getByRole("button", { name: /upload dp|change photo/i })).toBeDefined();
+
+      // Appearance and Account & Cloud sync were removed from My Account
+      expect(screen.queryByText("Theme mode")).toBeNull();
+      expect(screen.queryByText(/Account & Cloud sync/i)).toBeNull();
 
       // Uploaded reports & Undo button
       await waitFor(() => {
@@ -202,14 +260,20 @@ describe("Phase 6: Settings and Undo Engine", () => {
 
       // Data section
       expect(screen.getByText("Data")).toBeDefined();
+      expect(screen.getByRole("button", { name: /export pdf/i })).toBeDefined();
       expect(screen.getByRole("button", { name: /json/i })).toBeDefined();
       expect(screen.getByRole("button", { name: /csv/i })).toBeDefined();
       expect(screen.getByRole("button", { name: /delete all data/i })).toBeDefined();
 
+      // Privacy policy section with 6 bullet points
+      expect(screen.getByText("Privacy policy")).toBeDefined();
+      expect(screen.getByText(/Browser-first PDF parsing/i)).toBeDefined();
+      expect(screen.getByText(/Full export & permanent deletion/i)).toBeDefined();
+
       // Honest footer
       expect(
         screen.getByText(
-          /Your data stays on this device/i
+          /encrypted and securely stored/i
         )
       ).toBeDefined();
     });
@@ -231,6 +295,24 @@ describe("Phase 6: Settings and Undo Engine", () => {
       expect(
         screen.getByText("The app will go back to your previous report.")
       ).toBeDefined();
+    });
+
+    it("renders mobile-only Sign in, Appearance, and Language card at top of My Account", () => {
+      const handleOpenAuth = vi.fn();
+      render(<SettingsView onDataChanged={() => {}} onOpenAuth={handleOpenAuth} />);
+
+      const mobileSection = screen.getByLabelText(
+        /mobile account, appearance and language controls/i
+      );
+      expect(mobileSection.className).toContain("md:hidden");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /log in \/ sign up/i })
+      );
+      expect(handleOpenAuth).toHaveBeenCalledTimes(1);
+
+      expect(screen.getByRole("radiogroup", { name: /theme preference/i })).toBeDefined();
+      expect(screen.getByLabelText("Language")).toBeDefined();
     });
   });
 });

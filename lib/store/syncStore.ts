@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { AuthUser, SyncStatus } from "../sync/types";
+import { usePreferenceStore } from "./preferenceStore";
 
 interface SyncState {
   user: AuthUser | null;
@@ -28,7 +29,10 @@ export const useSyncStore = create<SyncState>((set) => ({
   hasPromptedMerge: false,
   errorMessage: null,
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    set({ user });
+    usePreferenceStore.getState().setProfileOwner(user?.id || "guest");
+  },
   setSyncStatus: (syncStatus) => set({ syncStatus }),
   setLastSyncedAt: (lastSyncedAt) => set({ lastSyncedAt }),
   setPendingUploadsCount: (pendingUploadsCount) => set({ pendingUploadsCount }),

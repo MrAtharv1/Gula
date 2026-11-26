@@ -20,6 +20,7 @@ import {
   calculateHistoricalMinMax,
 } from "@/lib/utils/trends";
 import { formatDate } from "@/lib/utils/date";
+import { useTranslation } from "@/lib/i18n/translations";
 import {
   ArrowUp,
   ArrowDown,
@@ -53,6 +54,7 @@ export function BiomarkerTrendChart({
   description,
   className,
 }: BiomarkerTrendChartProps) {
+  const { t } = useTranslation();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
 
   // Chronological ascending order
@@ -371,7 +373,7 @@ export function BiomarkerTrendChart({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
         <div>
           <span className="text-[12px] text-[var(--text-muted)] block">
-            Latest value
+            {t.latestValue}
           </span>
           <div className="flex items-baseline gap-1 mt-0.5">
             <span className="text-[20px] font-semibold leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
@@ -383,7 +385,7 @@ export function BiomarkerTrendChart({
 
         <div>
           <span className="text-[12px] text-[var(--text-muted)] block">
-            Vs previous
+            {t.vsPrevious}
           </span>
           <div className="flex items-center gap-1 mt-1 text-[13px] font-medium">
             {changeValue !== null ? (
@@ -400,14 +402,14 @@ export function BiomarkerTrendChart({
                 </span>
               </>
             ) : (
-              <span className="text-[var(--text-muted)]">Initial test</span>
+              <span className="text-[var(--text-muted)]">{t.initialTest}</span>
             )}
           </div>
         </div>
 
         <div>
           <span className="text-[12px] text-[var(--text-muted)] block">
-            Min / Max
+            {t.minMax}
           </span>
           <span className="text-[13px] font-medium text-[var(--text-primary)] mt-1 block tabular-nums">
             {minMax ? `${minMax.min} — ${minMax.max} ${unit}` : "—"}
@@ -416,7 +418,7 @@ export function BiomarkerTrendChart({
 
         <div>
           <span className="text-[12px] text-[var(--text-muted)] block">
-            Normal range
+            {t.normalRange}
           </span>
           <span className="text-[13px] font-medium text-[var(--text-secondary)] mt-1 block truncate tabular-nums">
             {refText ||

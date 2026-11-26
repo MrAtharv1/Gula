@@ -7,6 +7,7 @@ export interface ParsedResultItem {
   name?: string; // compatibility alias for displayName
   displayName: string;
   value: number;
+  valueText?: string;
   modifier?: "<" | ">";
   unit: string;
   refLow?: number;

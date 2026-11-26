@@ -1,11 +1,11 @@
 {
   "name": "GULA : Your Privacy Matters",
   "short_name": "Gula",
-  "description": "Turn health test report PDFs into a clean, trackable personal health dashboard. 100% private and local.",
+  "description": "Turn blood test PDFs into plain-language biomarker explanations, cholesterol & HbA1c trends, and report comparisons. Encrypted and securely stored.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "background_color": "#FFE4EF",
+  "theme_color": "#EC4899",
   "orientation": "portrait-primary",
   "icons": [
     {

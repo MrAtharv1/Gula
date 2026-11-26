@@ -6,6 +6,12 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/utils/date";
 import { Badge } from "./ui/Badge";
 import { getShortName } from "./BiomarkerCard";
+import {
+  useTranslation,
+  getLocalizedPanelName,
+  getLocalizedFlagLabel,
+} from "@/lib/i18n/translations";
+import { getLocalizedMetricName } from "@/lib/i18n/metricTranslations";
 import { ArrowUp, ArrowDown, Minus, GitCompare, Search } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -27,6 +33,8 @@ interface ComparedRow {
 }
 
 export function ReportCompareView({ reports, className }: ReportCompareViewProps) {
+  const { t, language } = useTranslation();
+
   if (reports.length < 2) {
     return (
       <div className="p-8 sm:p-12 text-center rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] space-y-2">
@@ -138,14 +146,19 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
 
   // Filtered rows
   const filteredRows = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     return comparedRows.filter((r) => {
+      const localizedName = getLocalizedMetricName(r.metricKey, r.displayName, language).toLowerCase();
+      const localizedCat = getLocalizedPanelName(r.category, language).toLowerCase();
       const matchSearch =
-        r.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.category.toLowerCase().includes(searchQuery.toLowerCase());
+        r.displayName.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        localizedName.includes(q) ||
+        localizedCat.includes(q);
       const matchCat = categoryFilter === "All" || r.category === categoryFilter;
       return matchSearch && matchCat;
     });
-  }, [comparedRows, searchQuery, categoryFilter]);
+  }, [comparedRows, searchQuery, categoryFilter, language]);
 
   // Overall Comparison Stats
   const summaryStats = useMemo(() => {
@@ -282,7 +295,7 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                   : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               )}
             >
-              {cat}
+              {cat === "All" ? t.all : getLocalizedPanelName(cat, language)}
             </button>
           ))}
         </div>
@@ -307,7 +320,10 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
             {filteredRows.map((row) => {
               const resA = row.resultA;
               const resB = row.resultB;
-              const shortName = getShortName(row.displayName);
+              const shortName =
+                language === "en"
+                  ? getShortName(row.displayName)
+                  : getLocalizedMetricName(row.metricKey, row.displayName, language);
 
               return (
                 <tr
@@ -320,7 +336,7 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                       {shortName}
                     </span>
                     <span className="text-[11px] text-[var(--text-muted)]">
-                      {row.category}
+                      {getLocalizedPanelName(row.category, language)}
                     </span>
                   </td>
 
@@ -333,7 +349,7 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                         </span>
                         {resB.flag !== "normal" && (
                           <Badge variant={resB.flag} size="sm">
-                            {resB.flag}
+                            {getLocalizedFlagLabel(resB.flag, language)}
                           </Badge>
                         )}
                       </div>
@@ -351,7 +367,7 @@ export function ReportCompareView({ reports, className }: ReportCompareViewProps
                         </span>
                         {resA.flag !== "normal" && (
                           <Badge variant={resA.flag} size="sm">
-                            {resA.flag}
+                            {getLocalizedFlagLabel(resA.flag, language)}
                           </Badge>
                         )}
                       </div>

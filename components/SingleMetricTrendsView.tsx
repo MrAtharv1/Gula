@@ -14,6 +14,8 @@ import {
   Table as TableIcon,
   LayoutList,
   SlidersHorizontal,
+  FileDown,
+  Loader2,
 } from "lucide-react";
 import {
   LatestResultSummary,
@@ -24,7 +26,13 @@ import {
   MetricDefinition,
 } from "@/lib/db/schema";
 import { METRIC_DICTIONARY } from "@/lib/db/metricDictionary";
-import { CATEGORY_PANEL_NAMES } from "@/lib/utils/reportView";
+import { getFullCardName } from "./BiomarkerCard";
+import { useTranslation, getLocalizedPanelName } from "@/lib/i18n/translations";
+import { getLocalizedMetricName } from "@/lib/i18n/metricTranslations";
+import { usePreferenceStore } from "@/lib/store/preferenceStore";
+import { useSyncStore } from "@/lib/store/syncStore";
+import { exportDoctorReportPdf } from "@/lib/utils/doctorPdfExport";
+import { toast } from "@/lib/store/toastStore";
 
 export type TrendFilterType =
   | "all"
@@ -519,7 +527,7 @@ export const ResultPill = React.memo(function ResultPill({
       {colorInfo.flagIcon === "check" && (
         <Check className="w-3 h-3 shrink-0" />
       )}
-      <span>{result.value}</span>
+      <span>{result.valueText || result.value}</span>
       <span className="text-[10px] opacity-80">{result.unit}</span>
     </span>
   );
@@ -538,6 +546,9 @@ export function SingleMetricTrendsView({
   onOpenDetail,
   className,
 }: SingleMetricTrendsViewProps) {
+  const { t, language } = useTranslation();
+  const profile = usePreferenceStore((s) => s.profile);
+  const user = useSyncStore((s) => s.user);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPanel, setSelectedPanel] = useState<string>("all");
   const [selectedFilters, setSelectedFilters] = useState<Set<TrendFilterType>>(
@@ -545,6 +556,24 @@ export function SingleMetricTrendsView({
   );
   const [viewMode, setViewMode] = useState<"auto" | "table" | "cards">("auto");
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(new Set());
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleExportDoctorPdf = async () => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      const { fileName } = await exportDoctorReportPdf({
+        profile,
+        accountEmail: user?.email,
+      });
+      toast(`Downloaded ${fileName}`, "success");
+    } catch (err: any) {
+      console.error(err);
+      toast(err?.message || "Couldn't generate Doctor PDF.", "error");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   // Collect all unique chronological report dates
   const uniqueDates = useMemo(() => {
@@ -683,21 +712,22 @@ export function SingleMetricTrendsView({
 
   // Group filtered biomarkers by Category/Panel
   const groupedPanels = useMemo(() => {
-    const map = new Map<string, LatestResultSummary[]>();
+    const map = new Map<MetricCategory, LatestResultSummary[]>();
 
     for (const s of filteredSummaries) {
-      const panel = CATEGORY_PANEL_NAMES[s.category] || s.category;
-      if (!map.has(panel)) {
-        map.set(panel, []);
+      const cat = s.category || "Other";
+      if (!map.has(cat)) {
+        map.set(cat, []);
       }
-      map.get(panel)!.push(s);
+      map.get(cat)!.push(s);
     }
 
-    return Array.from(map.entries()).map(([panelName, items]) => ({
-      panelName,
+    return Array.from(map.entries()).map(([cat, items]) => ({
+      category: cat,
+      panelName: getLocalizedPanelName(cat, language),
       items,
     }));
-  }, [filteredSummaries]);
+  }, [filteredSummaries, language]);
 
   // Unique panels for the dropdown selector
   const availablePanels = useMemo(() => {
@@ -719,7 +749,7 @@ export function SingleMetricTrendsView({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search for a biomarker..."
+            placeholder={t.searchBiomarker}
             className="w-full pl-9 pr-8 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-hidden focus:border-[var(--accent)] transition-colors"
           />
           {searchQuery && (
@@ -743,10 +773,10 @@ export function SingleMetricTrendsView({
             aria-label="Select biomarker panel"
             className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[13px] font-medium text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--accent)] cursor-pointer transition-colors"
           >
-            <option value="all">All Panels</option>
+            <option value="all">{t.allPanels}</option>
             {availablePanels.map((p) => (
               <option key={p} value={p}>
-                {CATEGORY_PANEL_NAMES[p] || p}
+                {getLocalizedPanelName(p, language)}
               </option>
             ))}
           </select>
@@ -778,6 +808,28 @@ export function SingleMetricTrendsView({
               <LayoutList className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Export PDF (Pink CTA with Gula logo) */}
+          <button
+            type="button"
+            onClick={handleExportDoctorPdf}
+            disabled={isExportingPdf || summaries.length === 0}
+            title="Export physician-readable PDF report with Gula cover, reference ranges, and trend graphs"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#EC4899] hover:bg-[#DB2777] text-white text-[12.5px] font-medium shadow-xs disabled:opacity-40 cursor-pointer transition-colors shrink-0"
+          >
+            <img
+              src="/logo.png"
+              alt=""
+              aria-hidden="true"
+              className="w-4 h-4 object-contain shrink-0 rounded-full bg-white p-0.5"
+            />
+            <span>{isExportingPdf ? "Exporting..." : "Export pdf"}</span>
+            {isExportingPdf ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            ) : (
+              <FileDown className="w-3.5 h-3.5 shrink-0" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -785,7 +837,7 @@ export function SingleMetricTrendsView({
       <div className="flex flex-wrap items-center gap-2 p-2.5 sm:p-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)]">
         <span className="text-[12px] font-medium text-[var(--text-muted)] flex items-center gap-1.5 mr-1 shrink-0">
           <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--accent)]" />
-          <span>Filters:</span>
+          <span>{t.filters}</span>
         </span>
 
         {/* 1. All */}
@@ -802,7 +854,7 @@ export function SingleMetricTrendsView({
             onChange={() => handleToggleFilter("all")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
           />
-          <span>All</span>
+          <span>{t.all}</span>
           <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {filterCounts.all}
           </span>
@@ -822,7 +874,7 @@ export function SingleMetricTrendsView({
             onChange={() => handleToggleFilter("attention_improved")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-emerald-600 focus:ring-emerald-500 cursor-pointer"
           />
-          <span>Need attention but improved</span>
+          <span>{t.needAttentionImproved}</span>
           <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {filterCounts.attention_improved}
           </span>
@@ -842,7 +894,7 @@ export function SingleMetricTrendsView({
             onChange={() => handleToggleFilter("attention_worsen")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-rose-600 focus:ring-rose-500 cursor-pointer"
           />
-          <span>Need attention and worsen</span>
+          <span>{t.needAttentionWorsen}</span>
           <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {filterCounts.attention_worsen}
           </span>
@@ -862,7 +914,7 @@ export function SingleMetricTrendsView({
             onChange={() => handleToggleFilter("border_range")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-amber-600 focus:ring-amber-500 cursor-pointer"
           />
-          <span>Within border range</span>
+          <span>{t.withinBorderRange}</span>
           <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {filterCounts.border_range}
           </span>
@@ -887,18 +939,18 @@ export function SingleMetricTrendsView({
         </div>
       ) : (
         <div className="space-y-4">
-          {groupedPanels.map(({ panelName, items }) => {
-            const isCollapsed = collapsedPanels.has(panelName);
+          {groupedPanels.map(({ category, panelName, items }) => {
+            const isCollapsed = collapsedPanels.has(category);
 
             return (
               <div
-                key={panelName}
+                key={category}
                 className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden shadow-xs"
               >
                 {/* Accordion Panel Header */}
                 <button
                   type="button"
-                  onClick={() => handleTogglePanel(panelName)}
+                  onClick={() => handleTogglePanel(category)}
                   className="w-full flex items-center justify-between px-4 py-3 bg-[var(--bg-card-subtle)]/70 hover:bg-[var(--bg-card-subtle)] transition-colors border-b border-[var(--border-subtle)] text-left cursor-pointer"
                   aria-expanded={!isCollapsed}
                 >
@@ -912,7 +964,7 @@ export function SingleMetricTrendsView({
                       {panelName}
                     </h4>
                     <span className="text-[12px] text-[var(--text-muted)] font-normal">
-                      ({items.length} {items.length === 1 ? "marker" : "markers"})
+                      ({items.length} {items.length === 1 ? t.markerSingular : t.markerPlural})
                     </span>
                   </div>
                 </button>
@@ -928,8 +980,8 @@ export function SingleMetricTrendsView({
                       <table className="w-full border-collapse text-left">
                         <thead>
                           <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]/50 text-[12px] font-medium text-[var(--text-muted)]">
-                            <th className="py-2.5 px-4 min-w-[180px]">Biomarker</th>
-                            <th className="py-2.5 px-3 min-w-[95px] text-center">Trend</th>
+                            <th className="py-2.5 px-4 min-w-[180px]">{t.biomarkerCol}</th>
+                            <th className="py-2.5 px-3 min-w-[95px] text-center">{t.trendCol}</th>
                             {uniqueDates.map((dateStr) => (
                               <th
                                 key={dateStr}
@@ -969,7 +1021,9 @@ export function SingleMetricTrendsView({
                                       onClick={() => onOpenDetail?.(summary)}
                                       className="text-[13px] font-medium text-[var(--text-primary)] group-hover:text-[var(--accent)] text-left cursor-pointer transition-colors"
                                     >
-                                      {summary.displayName}
+                                      {language === "en"
+                                        ? getFullCardName(summary.displayName)
+                                        : getLocalizedMetricName(summary.metricKey, summary.displayName, language)}
                                     </button>
                                     <button
                                       type="button"
@@ -1049,7 +1103,9 @@ export function SingleMetricTrendsView({
                                   onClick={() => onOpenDetail?.(summary)}
                                   className="text-[14px] font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] truncate text-left cursor-pointer"
                                 >
-                                  {summary.displayName}
+                                  {language === "en"
+                                    ? getFullCardName(summary.displayName)
+                                    : getLocalizedMetricName(summary.metricKey, summary.displayName, language)}
                                 </button>
                                 <button
                                   type="button"

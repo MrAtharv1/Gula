@@ -3,7 +3,8 @@
 import React, { useMemo } from "react";
 import { LatestResultSummary, MetricCategory } from "@/lib/db/schema";
 import { BiomarkerCard } from "./BiomarkerCard";
-import { CATEGORY_ORDER, CATEGORY_PANEL_NAMES } from "@/lib/utils/reportView";
+import { CATEGORY_ORDER } from "@/lib/utils/reportView";
+import { useTranslation, getLocalizedPanelName } from "@/lib/i18n/translations";
 import { ChevronDown, ChevronUp, CheckCircle2, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -26,6 +27,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
   onTogglePanel,
   onOpenDetail,
 }: HomeDashboardViewProps) {
+  const { t, language } = useTranslation();
   // Summary strip & filter counts for the currently selected report
   const stats = useMemo(() => {
     let inRange = 0;
@@ -80,7 +82,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
       if (items && items.length > 0) {
         panels.push({
           category: cat,
-          panelName: CATEGORY_PANEL_NAMES[cat] || cat,
+          panelName: getLocalizedPanelName(cat, language),
           items,
         });
       }
@@ -90,14 +92,14 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
       if (!CATEGORY_ORDER.includes(cat) && items.length > 0) {
         panels.push({
           category: cat,
-          panelName: CATEGORY_PANEL_NAMES[cat] || cat,
+          panelName: getLocalizedPanelName(cat, language),
           items,
         });
       }
     }
 
     return panels;
-  }, [filteredSummaries]);
+  }, [filteredSummaries, language]);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -108,7 +110,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
             {stats.total}
           </span>
           <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-            Markers
+            {t.markers}
           </span>
         </div>
 
@@ -117,7 +119,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
             {stats.inRange}
           </span>
           <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-            In range
+            {t.inRange}
           </span>
         </div>
 
@@ -127,11 +129,11 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-[var(--status-normal-dot)] shrink-0" />
                 <span className="text-[13px] font-semibold text-[var(--text-primary)] tracking-tight">
-                  All good
+                  {t.allGood}
                 </span>
               </span>
               <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-                All in range
+                {t.allInRange}
               </span>
             </>
           ) : (
@@ -148,7 +150,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
                 {stats.outOfRange}
               </span>
               <span className="text-[11.5px] text-[var(--text-faint)] leading-tight">
-                Out of range
+                {t.outOfRange}
               </span>
             </>
           )}
@@ -159,7 +161,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
       <div className="flex flex-wrap items-center gap-2 p-2.5 sm:p-3 rounded-xl bg-[var(--bg-card)] home-glass-surface border border-[var(--border-subtle)] shadow-[var(--shadow-sm)]">
         <span className="text-[12px] font-medium text-[var(--text-muted)] flex items-center gap-1.5 mr-1 shrink-0">
           <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--accent)]" />
-          <span>Filters:</span>
+          <span>{t.filters}</span>
         </span>
 
         {/* a) All */}
@@ -177,7 +179,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
             onChange={() => onToggleFilter("all")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
           />
-          <span>All</span>
+          <span>{t.all}</span>
           <span className="text-[11px] px-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {stats.total}
           </span>
@@ -198,7 +200,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
             onChange={() => onToggleFilter("out_of_range")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-rose-600 focus:ring-rose-500 cursor-pointer"
           />
-          <span>Out of range</span>
+          <span>{t.outOfRange}</span>
           <span className="text-[11px] px-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {stats.outOfRange}
           </span>
@@ -219,7 +221,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
             onChange={() => onToggleFilter("within_range")}
             className="w-3.5 h-3.5 rounded border-[var(--border-strong)] text-emerald-600 focus:ring-emerald-500 cursor-pointer"
           />
-          <span>Within range</span>
+          <span>{t.withinRange}</span>
           <span className="text-[11px] px-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] tabular-nums">
             {stats.inRange}
           </span>
@@ -230,20 +232,20 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
       {groupedPanels.length === 0 ? (
         <div className="p-8 text-center rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] shadow-[var(--shadow-sm)]">
           <p className="text-[13.5px] font-medium text-[var(--text-primary)]">
-            No markers match this filter in the selected report.
+            {t.noMatchingMarkers}
           </p>
           <button
             type="button"
             onClick={() => onToggleFilter("all")}
             className="mt-2.5 text-[12.5px] text-[var(--accent)] hover:underline font-medium cursor-pointer"
           >
-            Show all markers
+            {t.showAllMarkers}
           </button>
         </div>
       ) : (
         <div className="space-y-4">
           {groupedPanels.map(({ category, panelName, items }) => {
-            const isCollapsed = collapsedPanels.has(panelName);
+            const isCollapsed = collapsedPanels.has(category);
 
             return (
               <section
@@ -252,7 +254,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
               >
                 <button
                   type="button"
-                  onClick={() => onTogglePanel(panelName)}
+                  onClick={() => onTogglePanel(category)}
                   className={cn(
                     "w-full flex items-center justify-between px-4 py-3 text-left cursor-pointer",
                     "bg-[var(--bg-card-subtle)]/65 dark:bg-white/[0.03] hover:bg-[var(--bg-card-subtle)] dark:hover:bg-white/[0.06] transition-colors duration-[100ms]",
@@ -270,7 +272,7 @@ export const HomeDashboardView = React.memo(function HomeDashboardView({
                       {panelName}
                     </h2>
                     <span className="text-[12px] text-[var(--text-faint)] font-normal tabular-nums">
-                      ({items.length} {items.length === 1 ? "marker" : "markers"})
+                      ({items.length} {items.length === 1 ? t.markerSingular : t.markerPlural})
                     </span>
                   </div>
                 </button>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gula</string>
+    <string name="title_activity_main">Gula</string>
+    <string name="package_name">com.gula.health</string>
+    <string name="custom_url_scheme">com.gula.health</string>
+</resources>

@@ -17,7 +17,8 @@ import {
 } from "@/lib/db";
 import { useSyncStore } from "@/lib/store/syncStore";
 import {
-  signInWithMagicLink,
+  signInWithPassword,
+  signUpWithPassword,
   signInWithGoogle,
   signOut,
   getCurrentUser,
@@ -84,8 +85,11 @@ describe("Phase 8: Accounts and Local-First Sync", () => {
       expect(active[0].userId).toBeUndefined();
     });
 
-    it("signs in with email magic link", async () => {
-      const { error } = await signInWithMagicLink("patient@example.com");
+    it("signs up and signs in with email and password", async () => {
+      const signUpRes = await signUpWithPassword("patient@example.com", "secret123");
+      expect(signUpRes.error).toBeNull();
+
+      const { error } = await signInWithPassword("patient@example.com", "secret123");
       expect(error).toBeNull();
 
       const user = await getCurrentUser();
@@ -103,7 +107,7 @@ describe("Phase 8: Accounts and Local-First Sync", () => {
     });
 
     it("signs out cleanly while preserving local records", async () => {
-      await signInWithMagicLink("patient@example.com");
+      await signInWithPassword("patient@example.com", "secret123");
       await addReport(
         {
           fileName: "local_record.pdf",
@@ -390,36 +394,72 @@ describe("Phase 8: Accounts and Local-First Sync", () => {
   });
 
   /* ------------------------------------------------------------------
-   * 8. Settings UI Verification
+   * 8. My Account & AuthModal UI Verification
    * ------------------------------------------------------------------ */
-  describe("Settings View UI Integration", () => {
-    it("renders Account & Cloud Sync card, honest footer, and sync status", async () => {
+  describe("My Account & AuthModal UI Integration", () => {
+    it("renders About me, Privacy policy, and honest footer without Cloud Sync section", async () => {
       render(<SettingsView onDataChanged={vi.fn()} />);
 
-      // Section title
-      expect(screen.getByText(/Account & Cloud sync/i)).toBeDefined();
-      expect(screen.getByRole("button", { name: /send magic link/i })).toBeDefined();
-      expect(screen.getByRole("button", { name: /continue with google/i })).toBeDefined();
+      expect(screen.getByText("About me")).toBeDefined();
+      expect(screen.getByText("Privacy policy")).toBeDefined();
+      expect(screen.queryByText(/Account & Cloud sync/i)).toBeNull();
+      // Appearance is only shown inside the mobile-only (md:hidden) quick controls card
+      expect(screen.getByText("Appearance").closest("section")?.className).toContain("md:hidden");
 
       // Honest footer
       expect(
-        screen.getByText(
-          /Your data stays on this device/i
-        )
+        screen.getByText(/encrypted and securely stored/i)
       ).toBeDefined();
     });
 
-    it("displays sync indicator and delete account button when user is signed in", () => {
+    it("displays linked account email in About me and delete account option when user is signed in", () => {
       useSyncStore.getState().setUser({ id: "u_signed_in", email: "alice@test.com" });
       useSyncStore.getState().setSyncStatus("synced");
 
       render(<SettingsView onDataChanged={vi.fn()} />);
 
-      expect(screen.getByText("alice@test.com")).toBeDefined();
-      expect(screen.getByText("Synced")).toBeDefined();
-      expect(screen.getByRole("button", { name: /sync now/i })).toBeDefined();
-      expect(screen.getByRole("button", { name: /sign out/i })).toBeDefined();
+      const emailInput = screen.getByLabelText(/Account email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe("alice@test.com");
       expect(screen.getByRole("button", { name: /delete account/i })).toBeDefined();
+    });
+
+    it("isolates About me profile fields and custom avatar DP per user account", async () => {
+      const { usePreferenceStore } = await import("@/lib/store/preferenceStore");
+
+      // Guest session populates profile & DP
+      useSyncStore.getState().setUser(null);
+      usePreferenceStore.getState().updateProfile({
+        fullName: "Praveen Chauhan",
+        age: "58",
+        sex: "Male",
+        avatarDataUrl: "data:image/png;base64,GUESTDP",
+      });
+
+      // Sign in as brand new User A -> must NOT inherit guest Praveen Chauhan or DP
+      useSyncStore.getState().setUser({ id: "user_a", email: "usera@example.com" });
+      expect(usePreferenceStore.getState().profile.fullName).toBe("");
+      expect(usePreferenceStore.getState().profile.age).toBe("");
+      expect(usePreferenceStore.getState().profile.avatarDataUrl).toBe("");
+
+      // User A sets their own name & DP
+      usePreferenceStore.getState().updateProfile({
+        fullName: "Alice",
+        avatarDataUrl: "data:image/png;base64,ALICEDP",
+      });
+
+      // Switch to User B -> clean profile again
+      useSyncStore.getState().setUser({ id: "user_b", email: "userb@example.com" });
+      expect(usePreferenceStore.getState().profile.fullName).toBe("");
+      expect(usePreferenceStore.getState().profile.avatarDataUrl).toBe("");
+
+      // Switch back to User A -> Alice's profile & DP are preserved
+      useSyncStore.getState().setUser({ id: "user_a", email: "usera@example.com" });
+      expect(usePreferenceStore.getState().profile.fullName).toBe("Alice");
+      expect(usePreferenceStore.getState().profile.avatarDataUrl).toBe("data:image/png;base64,ALICEDP");
+
+      // Reset cleanly
+      useSyncStore.getState().setUser(null);
+      usePreferenceStore.getState().clearActiveProfile();
     });
   });
 });

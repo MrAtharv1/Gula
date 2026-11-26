@@ -873,6 +873,29 @@ export const METRIC_DICTIONARY: Record<string, MetricDefinition> = {
   },
 };
 
+/**
+ * Aligns parser canonical keys (from nameNormalizer) with METRIC_DICTIONARY keys
+ * so cross-report comparisons, explanations, and translations unify seamlessly.
+ */
+export const METRIC_KEY_ALIASES: Record<string, string> = {
+  rdw_cv: "rdw",
+  neutrophils_pct: "neutrophils",
+  lymphocytes_pct: "lymphocytes",
+  monocytes_pct: "monocytes",
+  eosinophils_pct: "eosinophils",
+  basophils_pct: "basophils",
+  protein_total: "total_protein",
+  blood_urea: "urea",
+};
+
+export function resolveCanonicalMetricKey(metricKey: string): string {
+  return METRIC_KEY_ALIASES[metricKey] || metricKey;
+}
+
+export function getMetricDefinition(metricKey: string): MetricDefinition | undefined {
+  return METRIC_DICTIONARY[resolveCanonicalMetricKey(metricKey)];
+}
+
 function normalizeSearchToken(str: string): string {
   return str
     .toLowerCase()

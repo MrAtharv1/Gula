@@ -7,11 +7,24 @@ import {
   SyncQueueItem,
   ReportStatus,
 } from "./schema";
-import { METRIC_DICTIONARY, evaluateResultFlag } from "./metricDictionary";
+import {
+  METRIC_DICTIONARY,
+  evaluateResultFlag,
+  resolveCanonicalMetricKey,
+  getMetricDefinition,
+} from "./metricDictionary";
 import type { CloudReport, CloudResult } from "../sync/types";
 
 export const DB_NAME = "Gula_DB";
 export const LEGACY_DB_NAME = "HealthTrack_V2_DB";
+export const MAX_GUEST_REPORTS = 2;
+
+export function hasReachedGuestReportLimit(
+  activeReportCount: number,
+  isSignedIn: boolean
+): boolean {
+  return !isSignedIn && activeReportCount >= MAX_GUEST_REPORTS;
+}
 
 export class GulaDatabase extends Dexie {
   reports!: Table<Report, number>;
@@ -202,10 +215,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     }
     resultsByReportId[res.reportId].push(resWithDate);
 
-    if (!grouped.has(res.metricKey)) {
-      grouped.set(res.metricKey, []);
+    const canonicalKey = resolveCanonicalMetricKey(res.metricKey);
+    if (!grouped.has(canonicalKey)) {
+      grouped.set(canonicalKey, []);
     }
-    grouped.get(res.metricKey)!.push(resWithDate);
+    grouped.get(canonicalKey)!.push(resWithDate);
   }
 
   const allSummaries: LatestResultSummary[] = [];
@@ -230,7 +244,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       );
     }
 
-    const dictDef = METRIC_DICTIONARY[metricKey];
+    const dictDef = getMetricDefinition(metricKey);
     const chronologicalItems = [...items].sort(
       (a, b) =>
         new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime()

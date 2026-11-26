@@ -111,10 +111,46 @@ describe("Phase 4: Home Dashboard Components", () => {
       const handleClick = vi.fn();
       render(<BiomarkerCard summary={mockSummary} onClick={handleClick} />);
 
-      expect(screen.getByText(/fasting glucose/i)).toBeDefined();
+      expect(screen.getByText("Fasting Blood Glucose")).toBeDefined();
       expect(screen.getByText("104")).toBeDefined();
       expect(screen.getByText("mg/dL")).toBeDefined();
       expect(screen.getByText(/up\s+12/i)).toBeDefined();
+    });
+
+    it("shows full biomarker names with short forms in brackets instead of standalone abbreviations", () => {
+      const cases = [
+        {
+          metricKey: "wbc",
+          displayName: "White Blood Cell Count",
+          expected: "White Blood Cell Count (WBC)",
+        },
+        {
+          metricKey: "mcv",
+          displayName: "Mean Corpuscular Volume (MCV)",
+          expected: "Mean Corpuscular Volume (MCV)",
+        },
+        {
+          metricKey: "ldl",
+          displayName: "LDL Cholesterol",
+          expected: "Low-Density Lipoprotein Cholesterol (LDL)",
+        },
+        {
+          metricKey: "ast",
+          displayName: "SGOT / AST",
+          expected: "Aspartate Aminotransferase (AST / SGOT)",
+        },
+      ];
+
+      for (const c of cases) {
+        const s: LatestResultSummary = {
+          ...mockSummary,
+          metricKey: c.metricKey,
+          displayName: c.displayName,
+        };
+        const { unmount } = render(<BiomarkerCard summary={s} onClick={() => {}} />);
+        expect(screen.getByText(c.expected)).toBeDefined();
+        unmount();
+      }
     });
 
     it("triggers onClick when card is clicked or keyboard activated", () => {

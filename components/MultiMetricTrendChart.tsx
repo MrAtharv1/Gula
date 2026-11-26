@@ -16,6 +16,8 @@ import { METRIC_DICTIONARY } from "@/lib/db/metricDictionary";
 import { formatDate } from "@/lib/utils/date";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { getShortName } from "./BiomarkerCard";
+import { useTranslation } from "@/lib/i18n/translations";
+import { getLocalizedMetricName } from "@/lib/i18n/metricTranslations";
 import { X, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -39,6 +41,7 @@ export function MultiMetricTrendChart({
   initialSelectedKeys,
   className,
 }: MultiMetricTrendChartProps) {
+  const { language } = useTranslation();
   // Up to 4 metrics selected
   const defaultKeys = useMemo(() => {
     if (initialSelectedKeys && initialSelectedKeys.length > 0) {
@@ -326,7 +329,11 @@ export function MultiMetricTrendChart({
         {selectedKeys.map((key, index) => {
           const summary = getSummary(key);
           const color = OVERLAY_COLORS[index % OVERLAY_COLORS.length];
-          const shortName = summary ? getShortName(summary.displayName) : key;
+          const shortName = summary
+            ? language === "en"
+              ? getShortName(summary.displayName)
+              : getLocalizedMetricName(summary.metricKey, summary.displayName, language)
+            : key;
           return (
             <div
               key={key}
@@ -423,7 +430,11 @@ export function MultiMetricTrendChart({
                           if (val === undefined) return null;
                           const summary = getSummary(key);
                           const color = OVERLAY_COLORS[i % OVERLAY_COLORS.length];
-                          const shortName = summary ? getShortName(summary.displayName) : key;
+                          const shortName = summary
+                            ? language === "en"
+                              ? getShortName(summary.displayName)
+                              : getLocalizedMetricName(summary.metricKey, summary.displayName, language)
+                            : key;
                           return (
                             <div
                               key={key}
@@ -456,12 +467,17 @@ export function MultiMetricTrendChart({
               const color = OVERLAY_COLORS[i % OVERLAY_COLORS.length];
               const summary = getSummary(key);
               const dataKey = scaleMode === "relative" ? `${key}_rel` : key;
+              const lineName = summary
+                ? language === "en"
+                  ? getShortName(summary.displayName)
+                  : getLocalizedMetricName(summary.metricKey, summary.displayName, language)
+                : key;
               return (
                 <Line
                   key={key}
                   type="monotone"
                   dataKey={dataKey}
-                  name={summary ? getShortName(summary.displayName) : key}
+                  name={lineName}
                   stroke={color}
                   strokeWidth={2}
                   dot={renderDotShape(i, color)}
@@ -492,7 +508,10 @@ export function MultiMetricTrendChart({
           {summaries.map((s) => {
             const isSelected = selectedKeys.includes(s.metricKey);
             const disabled = !isSelected && selectedKeys.length >= 4;
-            const shortName = getShortName(s.displayName);
+            const shortName =
+              language === "en"
+                ? getShortName(s.displayName)
+                : getLocalizedMetricName(s.metricKey, s.displayName, language);
             const colorIndex = selectedKeys.indexOf(s.metricKey);
             const color =
               colorIndex >= 0 ? OVERLAY_COLORS[colorIndex % OVERLAY_COLORS.length] : undefined;

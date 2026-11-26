@@ -4,50 +4,109 @@ import React, { useState } from "react";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { useSyncStore } from "@/lib/store/syncStore";
-import { signInWithMagicLink, signInWithGoogle, signOut } from "@/lib/sync/supabaseClient";
+import {
+  signInWithPassword,
+  signUpWithPassword,
+  signInWithGoogle,
+  signOut,
+} from "@/lib/sync/supabaseClient";
 import { syncAll } from "@/lib/sync/syncEngine";
 import { toast } from "@/lib/store/toastStore";
 import { formatDate } from "@/lib/utils/date";
-import { Mail, Loader2, LogOut, RotateCcw, ShieldCheck } from "lucide-react";
+import {
+  Loader2,
+  LogOut,
+  RotateCcw,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Lock,
+  AlertCircle,
+} from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSyncComplete?: () => void;
+  limitReason?: boolean;
 }
 
-export function AuthModal({ isOpen, onClose, onSyncComplete }: AuthModalProps) {
+export function AuthModal({
+  isOpen,
+  onClose,
+  onSyncComplete,
+  limitReason = false,
+}: AuthModalProps) {
   const { user, syncStatus, lastSyncedAt } = useSyncStore();
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  const handleSendMagicLink = async (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authEmail.trim()) return;
+    setFormError(null);
+    setInfoMessage(null);
+
+    const email = authEmail.trim();
+    if (!email || !authPassword) {
+      setFormError("Please enter both email and password.");
+      return;
+    }
+    if (authPassword.length < 6) {
+      setFormError("Password must be at least 6 characters.");
+      return;
+    }
+
     setIsBusy(true);
     try {
-      const { error } = await signInWithMagicLink(authEmail.trim());
-      if (error) {
-        toast(error.message, "error");
+      if (authMode === "signup") {
+        const { error, needsConfirmation } = await signUpWithPassword(email, authPassword);
+        if (error) {
+          setFormError(error.message);
+        } else if (needsConfirmation) {
+          setAuthMode("signin");
+          setInfoMessage(
+            "Account created! Check your inbox for the confirmation link before signing in."
+          );
+          toast("Account created! Check your inbox to confirm your email.", "success");
+        } else {
+          toast("Account created and signed in.", "success");
+          setAuthPassword("");
+          onClose();
+        }
       } else {
-        toast("Check your email for the magic sign-in link.", "success");
-        setAuthEmail("");
-        onClose();
+        const { error } = await signInWithPassword(email, authPassword);
+        if (error) {
+          setFormError(error.message);
+        } else {
+          toast("Signed in successfully.", "success");
+          setAuthPassword("");
+          onClose();
+        }
       }
     } catch (err: any) {
-      toast(err.message || "Failed to send magic link", "error");
+      setFormError(err.message || "Authentication failed");
     } finally {
       setIsBusy(false);
     }
   };
 
   const handleSignInGoogle = async () => {
+    setFormError(null);
     setIsBusy(true);
     try {
       const { error } = await signInWithGoogle();
-      if (error) toast(error.message, "error");
+      if (error) {
+        setFormError(error.message);
+      } else {
+        onClose();
+      }
     } catch (err: any) {
-      toast(err.message || "Failed to sign in with Google", "error");
+      setFormError(err.message || "Failed to sign in with Google");
     } finally {
       setIsBusy(false);
     }
@@ -70,7 +129,7 @@ export function AuthModal({ isOpen, onClose, onSyncComplete }: AuthModalProps) {
     setIsBusy(true);
     try {
       await signOut();
-      toast("Signed out. Local records remain on this device.", "info");
+      toast("Signed out.", "info");
       onClose();
     } catch (err) {
       console.error(err);
@@ -83,52 +142,138 @@ export function AuthModal({ isOpen, onClose, onSyncComplete }: AuthModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={user ? "Account & Cloud sync" : "Log in or sign up"}
+      title={
+        user
+          ? "Account & Cloud sync"
+          : authMode === "signup"
+          ? "Create your account"
+          : "Log in to Gula"
+      }
       description={
         user
-          ? "Manage your cloud sync session"
-          : "Optional private cloud backup & multi-device sync"
+          ? "Manage your encrypted cloud sync session"
+          : "Encrypted & securely stored. Never sold or used for ads."
       }
       maxWidth="sm"
     >
       {!user ? (
         <div className="space-y-4">
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-secondary)] leading-relaxed">
-            <ShieldCheck className="w-4 h-4 text-[var(--status-normal-dot)] shrink-0 mt-0.5" />
-            <span>
-              Your health data always stays stored locally on your device first. Sign in only if you want encrypted sync across devices.
-            </span>
+          {limitReason && (
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/90 dark:bg-amber-400/10 border border-amber-200/80 dark:border-amber-400/25 text-[12px] text-amber-900 dark:text-amber-200 leading-relaxed">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Guest mode allows up to <strong>2 reports</strong>. Sign in or create a free account to merge your current reports and upload more.
+              </span>
+            </div>
+          )}
+
+          {/* Mode Toggle: Sign in / Create account */}
+          <div className="grid grid-cols-2 p-0.5 rounded-[9px] bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)]">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("signin");
+                setFormError(null);
+                setInfoMessage(null);
+              }}
+              className={`py-1.5 text-[12px] font-medium rounded-[7px] transition-all cursor-pointer ${
+                authMode === "signin"
+                  ? "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] font-semibold"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("signup");
+                setFormError(null);
+                setInfoMessage(null);
+              }}
+              className={`py-1.5 text-[12px] font-medium rounded-[7px] transition-all cursor-pointer ${
+                authMode === "signup"
+                  ? "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] font-semibold"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              Sign up
+            </button>
           </div>
 
-          <form onSubmit={handleSendMagicLink} className="space-y-2.5">
-            <label className="block text-[11.5px] font-medium text-[var(--text-muted)]">
-              Continue with email
-            </label>
-            <input
-              type="email"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              placeholder="name@example.com"
-              className="w-full px-3 py-2 text-[13px] rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-              disabled={isBusy}
-              aria-label="Email address"
-              required
-            />
+          <form onSubmit={handlePasswordSubmit} className="space-y-3">
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--text-muted)] mb-1">
+                Email address
+              </label>
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full px-3 py-2 text-[13px] rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                disabled={isBusy}
+                aria-label="Email address"
+                autoComplete="email"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--text-muted)] mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  minLength={6}
+                  className="w-full pl-3 pr-9 py-2 text-[13px] rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                  disabled={isBusy}
+                  aria-label="Password"
+                  autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {infoMessage && (
+              <p className="text-[11.5px] text-[var(--status-normal-text)] bg-[var(--status-normal-bg)] border border-[var(--status-normal-border)] rounded-lg px-2.5 py-2 leading-relaxed">
+                {infoMessage}
+              </p>
+            )}
+
+            {formError && (
+              <p className="text-[11.5px] text-[var(--status-abnormal-text)] bg-[var(--status-abnormal-bg)] border border-[var(--status-abnormal-border)] rounded-lg px-2.5 py-2 leading-relaxed">
+                {formError}
+              </p>
+            )}
+
             <Button
               type="submit"
               variant="primary"
               size="md"
               className="w-full justify-center"
-              disabled={isBusy || !authEmail.trim()}
+              disabled={isBusy || !authEmail.trim() || authPassword.length < 6}
               icon={
                 isBusy ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <Mail className="w-3.5 h-3.5" />
+                  <Lock className="w-3.5 h-3.5" />
                 )
               }
             >
-              Send magic link
+              {authMode === "signup" ? "Create account" : "Sign in with email"}
             </Button>
           </form>
 
@@ -147,9 +292,24 @@ export function AuthModal({ isOpen, onClose, onSyncComplete }: AuthModalProps) {
             className="w-full justify-center"
             onClick={handleSignInGoogle}
             disabled={isBusy}
+            icon={
+              <img
+                src="/google-logo.png"
+                alt=""
+                aria-hidden="true"
+                className="w-4 h-4 object-contain"
+              />
+            }
           >
             Continue with Google
           </Button>
+
+          <div className="flex items-start gap-2 pt-1 text-[11px] text-[var(--text-faint)] leading-relaxed">
+            <ShieldCheck className="w-3.5 h-3.5 text-[var(--status-normal-dot)] shrink-0 mt-0.5" />
+            <span>
+              Your health data is encrypted in transit and at rest with strict per-user access controls.
+            </span>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -182,7 +342,7 @@ export function AuthModal({ isOpen, onClose, onSyncComplete }: AuthModalProps) {
                     ? "Offline"
                     : lastSyncedAt
                     ? `Synced ${formatDate(new Date(lastSyncedAt).toISOString().split("T")[0])}`
-                    : "Connected"}
+                    : "Encrypted cloud sync active"}
                 </span>
               </p>
             </div>

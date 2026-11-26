@@ -10,6 +10,8 @@ const CACHE_NAME = "gula-v1";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
+  "/logo.png",
+  "/favicon.ico",
   "/icons/icon.svg",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",

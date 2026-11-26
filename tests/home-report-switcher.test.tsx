@@ -323,10 +323,10 @@ describe("Homepage Report-Scoped View & Comparison Rules", () => {
     fireEvent.click(screen.getByText("Show all markers"));
     expect(screen.getByText("Metabolic Panel")).toBeDefined();
 
-    // Collapsing Metabolic Panel hides Fasting Glucose card
-    expect(screen.getByText("Fasting Glucose")).toBeDefined();
+    // Collapsing Metabolic Panel hides Fasting Blood Glucose card
+    expect(screen.getByText("Fasting Blood Glucose")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: /Metabolic Panel/i }));
-    expect(screen.queryByText("Fasting Glucose")).toBeNull();
+    expect(screen.queryByText("Fasting Blood Glucose")).toBeNull();
   });
 
   it("MetricDetailModal updates top section dynamically for custom report date while keeping full historical trend below", () => {

@@ -242,6 +242,10 @@ export function parsePdfText(
           name: norm.displayName,
           displayName: norm.displayName,
           value: fields.value ?? 0,
+          valueText:
+            fields.value === null && fields.valueText
+              ? fields.valueText
+              : undefined,
           modifier: fields.modifier,
           unit: fields.unit || norm.standardUnit,
           refLow: fields.refLow ?? norm.defaultLow,

@@ -271,4 +271,37 @@ describe("Phase 3: Layout-Adaptive Extraction", () => {
     );
     expect(bogusRisk).toBeUndefined();
   });
+
+  it("inherits previous page columnBounds onto headerless continuation pages", () => {
+    // Wide layout where values sit at x=315 (well past default 595pt valueXEnd=280)
+    const page1Tokens: PositionedToken[] = [
+      { str: "Test Description", x: 30, y: 760, width: 100, height: 10 },
+      { str: "Value(s)", x: 310, y: 760, width: 50, height: 10 },
+      { str: "Unit(s)", x: 420, y: 760, width: 40, height: 10 },
+      { str: "Reference Range", x: 520, y: 760, width: 100, height: 10 },
+      { str: "Hemoglobin", x: 30, y: 730, width: 70, height: 10 },
+      { str: "14.5", x: 315, y: 730, width: 25, height: 10 },
+      { str: "g/dL", x: 425, y: 730, width: 25, height: 10 },
+      { str: "13.0 - 17.0", x: 525, y: 730, width: 65, height: 10 },
+    ];
+
+    // Continuation page omits the column header row completely
+    const page2ContinuationTokens: PositionedToken[] = [
+      { str: "Platelet Count", x: 30, y: 760, width: 80, height: 10 },
+      { str: "245", x: 315, y: 760, width: 25, height: 10 },
+      { str: "10^3/µL", x: 425, y: 760, width: 40, height: 10 },
+      { str: "150 - 450", x: 525, y: 760, width: 60, height: 10 },
+    ];
+
+    const extracted = extractAdaptiveTableRows([
+      { pageNumber: 1, tokens: page1Tokens },
+      { pageNumber: 2, tokens: page2ContinuationTokens },
+    ]);
+
+    expect(extracted).toHaveLength(2);
+    expect(extracted[1].name).toBe("Platelet Count");
+    expect(extracted[1].valueCell).toBe("245");
+    expect(extracted[1].unitCell).toBe("10^3/µL");
+    expect(extracted[1].rangeCell).toBe("150 - 450");
+  });
 });

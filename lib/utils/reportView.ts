@@ -4,7 +4,10 @@ import {
   LatestResultSummary,
   MetricCategory,
 } from "../db/schema";
-import { METRIC_DICTIONARY } from "../db/metricDictionary";
+import {
+  resolveCanonicalMetricKey,
+  getMetricDefinition,
+} from "../db/metricDictionary";
 
 export const CATEGORY_ORDER: MetricCategory[] = [
   "Blood",
@@ -82,8 +85,9 @@ export function buildReportScopedSummaries(
     const reportResults = resultsByReportId[report.id];
     if (!reportResults) continue;
     for (const r of reportResults) {
-      if (!comparisonByMetric.has(r.metricKey)) {
-        comparisonByMetric.set(r.metricKey, r);
+      const k = resolveCanonicalMetricKey(r.metricKey);
+      if (!comparisonByMetric.has(k)) {
+        comparisonByMetric.set(k, r);
       }
     }
   }
@@ -93,12 +97,16 @@ export function buildReportScopedSummaries(
   const selectedTime = new Date(selectedReport.reportDate).getTime();
 
   for (const res of selectedResults) {
-    if (seenMetricKeys.has(res.metricKey)) continue;
-    seenMetricKeys.add(res.metricKey);
+    const canonicalKey = resolveCanonicalMetricKey(res.metricKey);
+    if (seenMetricKeys.has(canonicalKey)) continue;
+    seenMetricKeys.add(canonicalKey);
 
-    const dictDef = METRIC_DICTIONARY[res.metricKey];
-    const history = allHistoryByMetric[res.metricKey] || [res];
-    const comparison = comparisonByMetric.get(res.metricKey);
+    const dictDef = getMetricDefinition(canonicalKey);
+    const history =
+      allHistoryByMetric[canonicalKey] ||
+      allHistoryByMetric[res.metricKey] ||
+      [res];
+    const comparison = comparisonByMetric.get(canonicalKey);
 
     let changeValue: number | undefined;
     let changePercent: number | undefined;

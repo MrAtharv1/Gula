@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ResultFlag } from "@/lib/db/schema";
+import { useTranslation } from "@/lib/i18n/translations";
 import { cn } from "@/lib/utils/cn";
 
 interface RangeBarProps {
@@ -29,6 +30,8 @@ export function RangeBar({
   className,
   showLabels = true,
 }: RangeBarProps) {
+  const { t } = useTranslation();
+
   // No reference bounds at all — show a simple dashed track
   if (refLow === undefined && refHigh === undefined) {
     return (
@@ -36,7 +39,7 @@ export function RangeBar({
         <div className="w-full h-1 rounded-full bg-[var(--border-subtle)]" />
         {showLabels && (
           <div className="flex justify-between text-[11px] text-[var(--text-muted)]">
-            <span>No reference range</span>
+            <span>{t.noReferenceRange}</span>
           </div>
         )}
       </div>
@@ -75,7 +78,7 @@ export function RangeBar({
     markerPct = Math.max(2, Math.min(98, rawPos));
 
     leftLabel = "";
-    rightLabel = `Under ${refHigh}${unit ? ` ${unit}` : ""}`;
+    rightLabel = `${t.under} ${refHigh}${unit ? ` ${unit}` : ""}`;
   } else if (refLow !== undefined && refHigh === undefined) {
     // Lower bound only — "Over N"
     normalStartPct = 28;
@@ -87,7 +90,7 @@ export function RangeBar({
     const rawPos = ((value - minView) / totalViewSpan) * 100;
     markerPct = Math.max(2, Math.min(98, rawPos));
 
-    leftLabel = `Over ${refLow}${unit ? ` ${unit}` : ""}`;
+    leftLabel = `${t.over} ${refLow}${unit ? ` ${unit}` : ""}`;
     rightLabel = "";
   }
 

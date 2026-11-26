@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import { Plus, Trash2, Calendar, Building2 } from "lucide-react";
 import { METRIC_DICTIONARY, evaluateResultFlag, matchMetric } from "@/lib/db/metricDictionary";
-import { addReport } from "@/lib/db";
+import { addReport, getActiveReports, hasReachedGuestReportLimit } from "@/lib/db";
 import { MetricCategory } from "@/lib/db/schema";
+import { useSyncStore } from "@/lib/store/syncStore";
 import { Badge } from "./ui/Badge";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
@@ -13,6 +14,7 @@ interface ManualEntryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onRequireAuth?: () => void;
 }
 
 interface ManualRow {
@@ -26,7 +28,7 @@ interface ManualRow {
   refText?: string;
 }
 
-export function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualEntryModalProps) {
+export function ManualEntryModal({ isOpen, onClose, onSuccess, onRequireAuth }: ManualEntryModalProps) {
   const [title, setTitle] = useState("Manual Health Entry");
   const [date, setDate] = useState("");
   const [labName, setLabName] = useState("");
@@ -97,6 +99,19 @@ export function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualEntryModa
     }
 
     try {
+      const currentUser = useSyncStore.getState().user;
+      if (!currentUser) {
+        const active = await getActiveReports();
+        if (hasReachedGuestReportLimit(active.length, false)) {
+          setError("Guest mode allows up to 2 reports. Sign in to add more.");
+          if (onRequireAuth) {
+            onClose();
+            onRequireAuth();
+          }
+          return;
+        }
+      }
+
       await addReport(
         {
           fileName: title.trim() || "Manual_Test_Entry",

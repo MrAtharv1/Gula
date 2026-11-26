@@ -2,11 +2,16 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   getDashboardData,
   loadDemoData,
   migrateFromLegacyDatabase,
+  hasReachedGuestReportLimit,
 } from "@/lib/db";
+import { useSyncStore } from "@/lib/store/syncStore";
+import { usePreferenceStore } from "@/lib/store/preferenceStore";
+import { exportDoctorReportPdf } from "@/lib/utils/doctorPdfExport";
 import { Report, ResultWithDate, LatestResultSummary } from "@/lib/db/schema";
 import { BiomarkerCard } from "@/components/BiomarkerCard";
 import { HomeDashboardView, HomeFilterType } from "@/components/HomeDashboardView";
@@ -25,6 +30,7 @@ import {
   getReportButtonLabel,
 } from "@/lib/utils/reportView";
 import { initSyncEngine, syncAll } from "@/lib/sync/syncEngine";
+import { useTranslation } from "@/lib/i18n/translations";
 import { toast } from "@/lib/store/toastStore";
 import { formatDate } from "@/lib/utils/date";
 import {
@@ -37,6 +43,8 @@ import {
   ChevronDown,
   FileText,
   Check,
+  FileDown,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -112,6 +120,8 @@ const AuthModal = dynamic(
 export type TrendsSubMode = "single" | "compare" | "overlay";
 
 export default function GulaApp() {
+  const { t } = useTranslation();
+  const { user } = useSyncStore();
   const [activeTab, setActiveTab] = useState<NavTab>("home");
   const [reports, setReports] = useState<Report[]>([]);
   const [summaries, setSummaries] = useState<LatestResultSummary[]>([]);
@@ -136,6 +146,7 @@ export default function GulaApp() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authLimitReason, setAuthLimitReason] = useState(false);
 
   // Single-pass load from Dexie IndexedDB — independent of selectedKey so clicking cards never reloads DB
   const loadData = useCallback(async () => {
@@ -289,12 +300,51 @@ export default function GulaApp() {
   // ── Trends sub-mode segmented options ──────────────────────
   const trendsOptions = useMemo(
     () => [
-      { value: "single" as TrendsSubMode, label: "Single metric", icon: <ChartIcon className="w-3.5 h-3.5" /> },
-      { value: "compare" as TrendsSubMode, label: "Compare", icon: <GitCompare className="w-3.5 h-3.5" /> },
-      { value: "overlay" as TrendsSubMode, label: "Overlay", icon: <Layers className="w-3.5 h-3.5" /> },
+      { value: "single" as TrendsSubMode, label: t.singleMetric, icon: <ChartIcon className="w-3.5 h-3.5" /> },
+      { value: "compare" as TrendsSubMode, label: t.compare, icon: <GitCompare className="w-3.5 h-3.5" /> },
+      { value: "overlay" as TrendsSubMode, label: t.overlay, icon: <Layers className="w-3.5 h-3.5" /> },
     ],
-    []
+    [t.singleMetric, t.compare, t.overlay]
   );
+
+  // Guard report creation for unsigned guests (max 2 reports without an account)
+  const openUploadWithGuard = useCallback(() => {
+    if (hasReachedGuestReportLimit(reports.length, Boolean(user))) {
+      setAuthLimitReason(true);
+      setIsAuthOpen(true);
+      return;
+    }
+    setIsUploadOpen(true);
+  }, [reports.length, user]);
+
+  const openManualWithGuard = useCallback(() => {
+    if (hasReachedGuestReportLimit(reports.length, Boolean(user))) {
+      setAuthLimitReason(true);
+      setIsAuthOpen(true);
+      return;
+    }
+    setIsManualOpen(true);
+  }, [reports.length, user]);
+
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const profile = usePreferenceStore((s) => s.profile);
+
+  const handleExportHomePdf = useCallback(async () => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      const { fileName } = await exportDoctorReportPdf({
+        profile,
+        accountEmail: user?.email,
+      });
+      toast(`Downloaded ${fileName}`, "success");
+    } catch (err: any) {
+      console.error(err);
+      toast(err?.message || "Couldn't generate PDF report.", "error");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }, [isExportingPdf, profile, user?.email]);
 
   return (
     <div className="flex h-screen bg-[var(--bg-secondary)] overflow-hidden">
@@ -305,8 +355,11 @@ export default function GulaApp() {
       <Navbar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onOpenUpload={() => setIsUploadOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenUpload={openUploadWithGuard}
+        onOpenAuth={() => {
+          setAuthLimitReason(false);
+          setIsAuthOpen(true);
+        }}
         markersCount={summaries.length}
         reportsCount={reports.length}
       />
@@ -328,26 +381,58 @@ export default function GulaApp() {
             {/* Title */}
             <div className="min-w-0">
               <h1 className="text-[15px] font-semibold tracking-tight text-[var(--text-primary)] leading-tight">
-                {activeTab === "home" && "Health overview"}
-                {activeTab === "trends" && "Trends"}
-                {activeTab === "settings" && "Settings"}
+                {activeTab === "home" && t.healthOverview}
+                {activeTab === "trends" && t.trends}
+                {activeTab === "settings" && t.settings}
               </h1>
               <p className="text-[11.5px] text-[var(--text-faint)] leading-snug mt-0.5 truncate">
                 {activeTab === "home" && (
                   selectedReport
-                    ? `${isSelectedLatest ? "Latest report" : cleanReportFileName(selectedReport.fileName)} · ${formatDate(selectedReport.reportDate)}`
-                    : "No reports yet"
+                    ? `${isSelectedLatest ? t.latestReport : cleanReportFileName(selectedReport.fileName)} · ${formatDate(selectedReport.reportDate)}`
+                    : t.noReportsYet
                 )}
                 {activeTab === "trends" && (
-                  `${summaries.length} markers · ${reports.length} ${reports.length === 1 ? "report" : "reports"}`
+                  `${summaries.length} ${summaries.length === 1 ? t.markerSingular : t.markerPlural} · ${reports.length} ${reports.length === 1 ? t.reportSingular : t.reportPlural}`
                 )}
-                {activeTab === "settings" && "Data & preferences"}
+                {activeTab === "settings" && t.dataAndPreferences}
               </p>
             </div>
 
             {/* Header actions */}
             {activeTab !== "settings" && (
               <div className="flex items-center gap-2 shrink-0">
+                {/* Export PDF Button (left of Latest report on Home) */}
+                {activeTab === "home" && selectedReport && summaries.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportHomePdf}
+                    disabled={isExportingPdf}
+                    title="Export physician-readable PDF report"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 h-9 rounded-lg",
+                      "bg-[#EC4899] hover:bg-[#DB2777] text-white",
+                      "text-[12px] font-medium shadow-[var(--shadow-sm)]",
+                      "transition-colors duration-[100ms] cursor-pointer select-none disabled:opacity-50",
+                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EC4899]"
+                    )}
+                  >
+                    <img
+                      src="/logo.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="w-4 h-4 object-contain shrink-0 rounded-full bg-white p-px"
+                    />
+                    <span className="hidden sm:inline">
+                      {isExportingPdf ? "Exporting..." : "Export pdf"}
+                    </span>
+                    {isExportingPdf ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    ) : (
+                      <FileDown className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                  </button>
+                )}
+
                 {/* Report Switcher Button (left of Add button on Home) */}
                 {activeTab === "home" && selectedReport && (
                   <div ref={reportMenuRef} className="relative">
@@ -396,13 +481,15 @@ export default function GulaApp() {
                         )}
                       >
                         <div className="px-2.5 py-1.5 text-[10.5px] font-medium text-[var(--text-faint)] uppercase tracking-wider">
-                          Switch report
+                          {t.switchReport}
                         </div>
                         {reports.map((rep, idx) => {
                           const isCurrent = rep.id === selectedReport.id;
                           const isLatest = idx === 0;
                           const markerCount = rep.id != null ? (resultsByReportId[rep.id]?.length ?? 0) : 0;
-                          const label = rep.labName?.trim() || cleanReportFileName(rep.fileName);
+                          const label = isLatest
+                            ? t.latestReport
+                            : rep.labName?.trim() || cleanReportFileName(rep.fileName);
 
                           return (
                             <button
@@ -429,12 +516,12 @@ export default function GulaApp() {
                                   </span>
                                   {isLatest && (
                                     <span className="text-[10px] font-semibold px-1.5 py-px rounded-full bg-[var(--bg-card-subtle)] border border-[var(--border-subtle)] text-[var(--accent)] shrink-0">
-                                      Latest
+                                      {t.latestReport}
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-[11px] text-[var(--text-faint)] tabular-nums mt-0.5">
-                                  {formatDate(rep.reportDate)} · {markerCount} {markerCount === 1 ? "marker" : "markers"}
+                                  {formatDate(rep.reportDate)} · {markerCount} {markerCount === 1 ? t.markerSingular : t.markerPlural}
                                 </div>
                               </div>
                               {isCurrent && (
@@ -457,7 +544,7 @@ export default function GulaApp() {
                     className="gap-1.5 h-9"
                   >
                     <Plus className="w-3 h-3 stroke-[2.5]" />
-                    <span>Add</span>
+                    <span>{t.add}</span>
                     <ChevronDown className={cn("w-3 h-3 transition-transform duration-[100ms]", addMenuOpen && "rotate-180")} />
                   </Button>
 
@@ -478,10 +565,10 @@ export default function GulaApp() {
                           "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
                           "cursor-pointer select-none text-left",
                         )}
-                        onClick={() => { setAddMenuOpen(false); setIsUploadOpen(true); }}
+                        onClick={() => { setAddMenuOpen(false); openUploadWithGuard(); }}
                       >
                         <Upload className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
-                        Upload PDF
+                        {t.uploadPdf}
                       </button>
                       <button
                         className={cn(
@@ -490,10 +577,10 @@ export default function GulaApp() {
                           "hover:bg-[var(--bg-hover)] transition-colors duration-[80ms]",
                           "cursor-pointer select-none text-left",
                         )}
-                        onClick={() => { setAddMenuOpen(false); setIsManualOpen(true); }}
+                        onClick={() => { setAddMenuOpen(false); openManualWithGuard(); }}
                       >
                         <FilePlus className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
-                        Enter manually
+                        {t.enterManually}
                       </button>
                     </div>
                   )}
@@ -525,7 +612,7 @@ export default function GulaApp() {
                   title="No reports yet"
                   description="Upload a lab report PDF to start tracking your health."
                   actionLabel="Upload report"
-                  onAction={() => setIsUploadOpen(true)}
+                  onAction={openUploadWithGuard}
                   secondaryActionLabel="Try demo data"
                   secondaryActionType="link"
                   onSecondaryAction={async () => {
@@ -552,7 +639,7 @@ export default function GulaApp() {
                         onChange={setTrendsMode}
                       />
                       <span className="text-[12px] text-[var(--text-muted)]">
-                        {reports.length} {reports.length === 1 ? "report" : "reports"} on file
+                        {reports.length} {reports.length === 1 ? t.reportSingular : t.reportPlural} {t.reportsOnFile}
                       </span>
                     </div>
 
@@ -579,7 +666,7 @@ export default function GulaApp() {
                       <div className="pt-2">
                         <div className="flex items-center gap-2 mb-3">
                           <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-                            All metrics
+                            {t.allMetrics}
                           </h3>
                           <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
                             {summaries.length}
@@ -603,7 +690,7 @@ export default function GulaApp() {
                     title="No data yet"
                     description="Upload a report to view trends."
                     actionLabel="Upload report"
-                    onAction={() => setIsUploadOpen(true)}
+                    onAction={openUploadWithGuard}
                     secondaryActionLabel="Try demo data"
                     secondaryActionType="link"
                     onSecondaryAction={async () => {
@@ -625,8 +712,98 @@ export default function GulaApp() {
                 loadData();
                 toast("Data updated", "info");
               }}
+              onOpenAuth={() => {
+                setAuthLimitReason(false);
+                setIsAuthOpen(true);
+              }}
             />
           )}
+
+          {/* Semantic About / SEO Footer explaining Gula + Biomarker Guides */}
+          <footer
+            aria-label="About Gula"
+            className="pt-6 mt-4 border-t border-[var(--border-subtle)] text-[11.5px] text-[var(--text-faint)] leading-relaxed space-y-4"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="max-w-3xl space-y-1.5">
+                <h2 className="text-[12.5px] font-semibold text-[var(--text-muted)]">
+                  Understand Your Blood Test Report &amp; Track Every Result Over Time
+                </h2>
+                <p>
+                  <strong className="font-medium text-[var(--text-muted)]">Gula</strong>{" "}
+                  (from <em>&ldquo;gula&rdquo;</em>, meaning sugar) turns diagnostic PDFs into clear biomarker dashboards, normal-range status checks, plain-language test explanations in 12 languages, and report-over-report comparisons for HbA1c, fasting glucose, lipid profile (LDL, HDL, triglycerides), liver function (SGOT/AST, SGPT/ALT, bilirubin), kidney (creatinine, eGFR), thyroid (TSH, T3, T4), and CBC panels.
+                </p>
+                <p>
+                  Try up to 2 reports free as a guest or sign in with Google or email for encrypted cloud sync. Your records are encrypted in transit and at rest, never sold or used for ads. For educational tracking only &mdash; consult a qualified doctor for medical advice.
+                </p>
+              </div>
+              <span className="shrink-0 text-[11px] text-[var(--text-faint)] pt-0.5">
+                GULA : Your Privacy Matters
+              </span>
+            </div>
+
+            {/* Crawl & Reader Links to Static Biomarker Guides */}
+            <nav aria-label="Biomarker normal range guides" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
+              <Link
+                href="/markers"
+                className="font-medium text-[var(--accent)] hover:underline"
+              >
+                All Blood Test Guides &rarr;
+              </Link>
+              <Link href="/markers/hba1c" className="hover:text-[var(--text-secondary)] transition-colors">
+                HbA1c Normal Range
+              </Link>
+              <Link href="/markers/glucose_fasting" className="hover:text-[var(--text-secondary)] transition-colors">
+                Fasting Glucose
+              </Link>
+              <Link href="/markers/cholesterol_total" className="hover:text-[var(--text-secondary)] transition-colors">
+                Cholesterol &amp; Lipids
+              </Link>
+              <Link href="/markers/ldl" className="hover:text-[var(--text-secondary)] transition-colors">
+                LDL Guide
+              </Link>
+              <Link href="/markers/alt" className="hover:text-[var(--text-secondary)] transition-colors">
+                SGPT (ALT)
+              </Link>
+              <Link href="/markers/tsh" className="hover:text-[var(--text-secondary)] transition-colors">
+                TSH Thyroid
+              </Link>
+              <Link href="/markers/creatinine" className="hover:text-[var(--text-secondary)] transition-colors">
+                Creatinine (KFT)
+              </Link>
+              <Link href="/markers/hemoglobin" className="hover:text-[var(--text-secondary)] transition-colors">
+                Hemoglobin (CBC)
+              </Link>
+            </nav>
+
+            {/* Compact FAQ */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+              <details className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)]/40 px-3 py-2">
+                <summary className="cursor-pointer font-medium text-[var(--text-muted)] text-[11.5px]">
+                  How do I read a blood test report?
+                </summary>
+                <p className="mt-1.5 text-[11px] text-[var(--text-faint)] leading-relaxed">
+                  Upload your lab PDF to group results by panel, spot high or low flags at a glance, and click any marker for a simple everyday explanation.
+                </p>
+              </details>
+              <details className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)]/40 px-3 py-2">
+                <summary className="cursor-pointer font-medium text-[var(--text-muted)] text-[11.5px]">
+                  Can I compare two blood reports?
+                </summary>
+                <p className="mt-1.5 text-[11px] text-[var(--text-faint)] leading-relaxed">
+                  Yes. Open Trends &rarr; Compare to view two lab reports side-by-side, or switch reports from the Home header to see changes over time.
+                </p>
+              </details>
+              <details className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)]/40 px-3 py-2">
+                <summary className="cursor-pointer font-medium text-[var(--text-muted)] text-[11.5px]">
+                  What does Gula mean?
+                </summary>
+                <p className="mt-1.5 text-[11px] text-[var(--text-faint)] leading-relaxed">
+                  Gula means sugar &mdash; bringing simple, sweet clarity to blood sugar, HbA1c, cholesterol, liver, thyroid, and kidney tracking.
+                </p>
+              </details>
+            </div>
+          </footer>
         </PageContainer>
       </main>
 
@@ -642,6 +819,10 @@ export default function GulaApp() {
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
+        onRequireAuth={() => {
+          setAuthLimitReason(true);
+          setIsAuthOpen(true);
+        }}
         onSuccess={() => {
           setSelectedReportId(null);
           loadData();
@@ -653,6 +834,10 @@ export default function GulaApp() {
       <ManualEntryModal
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
+        onRequireAuth={() => {
+          setAuthLimitReason(true);
+          setIsAuthOpen(true);
+        }}
         onSuccess={() => {
           setSelectedReportId(null);
           loadData();
@@ -666,8 +851,12 @@ export default function GulaApp() {
 
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setAuthLimitReason(false);
+        }}
         onSyncComplete={() => loadData()}
+        limitReason={authLimitReason}
       />
     </div>
   );

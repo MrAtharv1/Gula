@@ -58,6 +58,8 @@ describe("Phase 3: Date & Lab Detection", () => {
     expect(detectLabName("Tata 1mg Diagnostic Services")).toBe("Tata 1mg");
     expect(detectLabName("SRL Diagnostics Pvt Ltd")).toBe("SRL Diagnostics");
     expect(detectLabName("Random Hospital")).toBe("Unknown lab");
+    expect(detectLabName("Page 1\n...\nFooter: www.redcliffelabs.com | support@redcliffelabs.com")).toBe("Redcliffe Labs");
+    expect(detectLabName("Header\nProcessed At: Sunrise Diagnostic Centre")).toBe("Sunrise Diagnostic Centre");
   });
 });
 

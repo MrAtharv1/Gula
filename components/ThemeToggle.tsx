@@ -1,6 +1,7 @@
 "use client";
 
 import { useThemeStore, type ThemeMode } from "@/lib/store/themeStore";
+import { useTranslation } from "@/lib/i18n/translations";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -13,15 +14,16 @@ export function ThemeToggle({
   compact?: boolean;
 }) {
   const { theme, setTheme } = useThemeStore();
+  const { t } = useTranslation();
 
   const options: {
     mode: ThemeMode;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
-    { mode: "light", label: "Light", icon: Sun },
-    { mode: "system", label: "Auto", icon: Monitor },
-    { mode: "dark", label: "Dark", icon: Moon },
+    { mode: "light", label: t.light, icon: Sun },
+    { mode: "system", label: t.auto, icon: Monitor },
+    { mode: "dark", label: t.dark, icon: Moon },
   ];
 
   return (

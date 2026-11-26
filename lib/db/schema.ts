@@ -36,6 +36,7 @@ export interface Result {
   metricKey: string; // Canonical normalized key (e.g. "hemoglobin", "glucose_fasting")
   displayName: string; // As printed on report
   value: number;
+  valueText?: string;
   unit: string;
   refLow?: number;
   refHigh?: number;

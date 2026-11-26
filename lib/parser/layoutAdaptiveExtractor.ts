@@ -113,10 +113,26 @@ export function deriveColumnBoundaries(
 export function extractPageRows(
   tokens: PositionedToken[],
   pageNumber: number,
-  initialSection = ""
-): { rows: ExtractedTableRow[]; endingSection: string } {
+  initialSection = "",
+  fallbackBounds?: ColumnBoundaries
+): {
+  rows: ExtractedTableRow[];
+  endingSection: string;
+  columnBounds: ColumnBoundaries;
+  hasHeader: boolean;
+} {
+  const defaultBounds: ColumnBoundaries = fallbackBounds ?? {
+    nameXEnd: 190,
+    valueXEnd: 280,
+    unitXEnd: 360,
+  };
   if (!tokens || tokens.length === 0) {
-    return { rows: [], endingSection: initialSection };
+    return {
+      rows: [],
+      endingSection: initialSection,
+      columnBounds: defaultBounds,
+      hasHeader: false,
+    };
   }
 
   // Group tokens into lines by descending Y, ascending X
@@ -166,9 +182,10 @@ export function extractPageRows(
     }
   }
 
+  const hasHeader = Boolean(headerBucket);
   const columnBounds = headerBucket
     ? deriveColumnBoundaries(headerBucket)
-    : { nameXEnd: 190, valueXEnd: 280, unitXEnd: 360 };
+    : defaultBounds;
 
   // 2. Identify Results Region (below headerY, above first cutoff keyword)
   let cutoffY = 0;
@@ -285,7 +302,12 @@ export function extractPageRows(
     pageRows.push(currentRow);
   }
 
-  return { rows: pageRows, endingSection: currentSection };
+  return {
+    rows: pageRows,
+    endingSection: currentSection,
+    columnBounds,
+    hasHeader,
+  };
 }
 
 /**
@@ -364,6 +386,7 @@ export function extractAdaptiveTableRows(
 ): ExtractedTableRow[] {
   const allRows: ExtractedTableRow[] = [];
   let section = "";
+  let inheritedBounds: ColumnBoundaries | undefined;
 
   for (const p of pages) {
     const tokens =
@@ -372,9 +395,12 @@ export function extractAdaptiveTableRows(
         : p.lines
         ? tokensFromLines(p.lines)
         : [];
-    const res = extractPageRows(tokens, p.pageNumber, section);
+    const res = extractPageRows(tokens, p.pageNumber, section, inheritedBounds);
     allRows.push(...res.rows);
     section = res.endingSection;
+    if (res.hasHeader) {
+      inheritedBounds = res.columnBounds;
+    }
   }
 
   return deduplicatePageBreakRows(allRows);
